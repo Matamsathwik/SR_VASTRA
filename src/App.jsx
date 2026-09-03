@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import Sidebar from "./components/sidebar";
+import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import Customers from "./pages/Customers";
 import Billing from "./pages/Billing";
