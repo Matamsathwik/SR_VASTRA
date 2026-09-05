@@ -649,9 +649,14 @@ Thank you.`;
         <button
           className="primary-btn"
           onClick={() => {
-            setDueInput(previousDue);
-            setEditingPreviousDue(true);
-          }}
+  if (editingPreviousDue) {
+    setEditingPreviousDue(false);
+  } else {
+    setCollectingPayment(false);
+    setDueInput(previousDue);
+    setEditingPreviousDue(true);
+  }
+}}
         >
           Add / Update Previous Due
         </button>
@@ -659,14 +664,19 @@ Thank you.`;
         {/* Collect Payment */}
 
         <button
-          className="primary-btn"
-          onClick={() =>
-            setCollectingPayment(true)
-          }
-          disabled={totalPending <= 0}
-        >
-          Collect Payment
-        </button>
+  className="primary-btn"
+  onClick={() => {
+    if (collectingPayment) {
+      setCollectingPayment(false);
+    } else {
+      setEditingPreviousDue(false);
+      setCollectingPayment(true);
+    }
+  }}
+  disabled={totalPending <= 0}
+>
+  Collect Payment
+</button>
 
         {/* WhatsApp */}
 
@@ -716,7 +726,6 @@ Thank you.`;
               flexWrap: "wrap",
             }}
           >
-
             <input
               type="number"
               min="0"
@@ -727,24 +736,34 @@ Thank you.`;
               placeholder="Enter previous due amount"
             />
 
-            <button
-              className="primary-btn"
-              onClick={
-                handleUpdatePreviousDue
-              }
-            >
-              Save
-            </button>
+            <div
+              className="customer-form-actions"
+              style={{
+                display: "flex",
+                gap: 10,
+                marginTop: 18,
+                flex: "1 1 100%",
+                width: "100%",
 
-            <button
-              className="back-btn"
-              onClick={() =>
-                setEditingPreviousDue(false)
-              }
+              }}
             >
-              Cancel
-            </button>
+              <button
+                className="primary-btn"
+                onClick={handleUpdatePreviousDue}
+              >
+                Save
+              </button>
 
+              <button
+                className="back-btn"
+                style={{ flex: 1 }}
+                onClick={() =>
+                  setEditingPreviousDue(false)
+                }
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -753,10 +772,13 @@ Thank you.`;
 
       {collectingPayment && (
         <div
+        
           className="table-card"
           style={{
             marginBottom: 18,
             maxWidth: 500,
+            marginLeft: "auto",
+            marginRight: "auto",
           }}
         >
 
@@ -848,38 +870,36 @@ Thank you.`;
           />
 
           <div
-            style={{
-              display: "flex",
-              gap: 10,
-              marginTop: 18,
-            }}
-          >
+  className="customer-form-actions"
+  style={{
+    display: "flex",
+    gap: 10,
+    marginTop: 18,
+  }}
+>
+  <button
+    className="primary-btn"
+    onClick={handleCollectPayment}
+    disabled={paymentLoading}
+  >
+    {paymentLoading
+      ? "Saving..."
+      : "Save Payment"}
+  </button>
 
-            <button
-              className="primary-btn"
-              onClick={
-                handleCollectPayment
-              }
-              disabled={paymentLoading}
-            >
-              {paymentLoading
-                ? "Saving..."
-                : "Save Payment"}
-            </button>
-
-            <button
-              className="back-btn"
-              onClick={() => {
-                setCollectingPayment(false);
-                setPaymentAmount("");
-                setPaymentNote("");
-              }}
-              disabled={paymentLoading}
-            >
-              Cancel
-            </button>
-
-          </div>
+  <button
+    className="back-btn"
+    style={{ flex: 1 }}
+    onClick={() => {
+      setCollectingPayment(false);
+      setPaymentAmount("");
+      setPaymentNote("");
+    }}
+    disabled={paymentLoading}
+  >
+    Cancel
+  </button>
+</div>
         </div>
       )}
 

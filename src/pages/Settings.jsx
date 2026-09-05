@@ -6,40 +6,53 @@ import {
   getCustomers,
 } from "../data/storage";
 import { customerService } from "../services/customerService";
+import { staffService } from "../services/staffService";
 
 export default function Settings({ user }) {
   const isOwner = user?.role?.toLowerCase() === "owner";
 
-  // My password
+  // ==================== MY PASSWORD ====================
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Staff reset (Owner only)
+  // ==================== STAFF PASSWORD RESET ====================
+
   const [staffList, setStaffList] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
   const [staffConfirmPassword, setStaffConfirmPassword] = useState("");
+  const [staffResetLoading, setStaffResetLoading] = useState(false);
+
+  // ==================== LOAD ACTIVE STAFF ====================
 
   useEffect(() => {
     if (!isOwner) return;
 
     const loadStaff = async () => {
-      const { data, error } = await supabase
-        .from("staff")
-        .select("id, username, role")
-        .eq("active", true)
-        .neq("role", "owner")
-        .order("username");
+      try {
+        const { data, error } = await supabase
+          .from("staff")
+          .select("id, username, role")
+          .eq("active", true)
+          .neq("role", "owner")
+          .order("username");
 
-      if (!error) setStaffList(data || []);
+        if (error) throw error;
+
+        setStaffList(data || []);
+      } catch (err) {
+        console.error("Staff Load Error:", err);
+        alert(err.message || "Failed to load staff.");
+      }
     };
 
     loadStaff();
   }, [isOwner]);
-  console.log("Settings user:", user);
-console.log("Role:", user?.role);
-console.log("isOwner:", isOwner);
+
+  // ==================== CHANGE MY PASSWORD ====================
+
   const changePassword = async () => {
     if (newPassword.length < 6) {
       alert("Password must be at least 6 characters.");
@@ -61,38 +74,78 @@ console.log("isOwner:", isOwner);
       if (error) throw error;
 
       alert("Password updated successfully.");
+
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      alert(err.message);
+      console.error("Change Password Error:", err);
+      alert(err.message || "Failed to update password.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ==================== RESET STAFF PASSWORD ====================
+
   const resetStaffPassword = async () => {
-    if (!selectedStaff) {
-      alert("Select a staff member.");
-      return;
-    }
+  if (!selectedStaff) {
+    alert("Select a staff member.");
+    return;
+  }
 
-    if (staffPassword.length < 6) {
-      alert("Password must be at least 6 characters.");
-      return;
-    }
+  if (staffPassword.length < 6) {
+    alert("Password must be at least 6 characters.");
+    return;
+  }
 
-    if (staffPassword !== staffConfirmPassword) {
-      alert("Passwords do not match.");
-      return;
-    }
+  if (staffPassword !== staffConfirmPassword) {
+    alert("Passwords do not match.");
+    return;
+  }
 
-    // Edge Function will be connected next
-    alert("Staff Password Reset UI is ready. We'll connect the secure Supabase Admin API next.");
+  const selectedUser = staffList.find(
+    (staff) => staff.id === selectedStaff
+  );
+
+  if (!selectedUser) {
+    alert("Staff member not found.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Reset password for ${selectedUser.username}?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    await staffService.resetStaffPassword(
+      selectedStaff,
+      staffPassword
+    );
+
+    alert("Staff password updated successfully.");
 
     setSelectedStaff("");
     setStaffPassword("");
     setStaffConfirmPassword("");
-  };
+  } catch (err) {
+    console.error("Staff password reset error:", err);
+
+    alert(
+      err?.message ||
+        "Failed to reset staff password."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // ==================== IMPORT CUSTOMERS ====================
 
   const importCustomers = async () => {
     const customers = getCustomers();
@@ -109,12 +162,20 @@ console.log("isOwner:", isOwner);
         await customerService.create(customer);
         uploaded++;
       } catch (err) {
-        console.log("Skipped:", customer.name, err.message);
+        console.log(
+          "Skipped:",
+          customer.name,
+          err.message
+        );
       }
     }
 
-    alert(`Upload completed.\n${uploaded} customers uploaded.`);
+    alert(
+      `Upload completed.\n${uploaded} customers uploaded.`
+    );
   };
+
+  // ==================== RESTORE BACKUP ====================
 
   const restore = (e) => {
     const file = e.target.files[0];
@@ -136,6 +197,7 @@ console.log("isOwner:", isOwner);
         }
 
         importBackup(backup);
+
         alert("Backup restored. Refresh the app.");
       } catch {
         alert("Invalid backup file.");
@@ -149,7 +211,8 @@ console.log("isOwner:", isOwner);
     <main className="content">
       <h1>Settings</h1>
 
-      {/* Owner Only */}
+      {/* ==================== OWNER: BACKUP ==================== */}
+
       {isOwner && (
         <div className="customer-card">
           <h2>Backup & Restore</h2>
@@ -158,7 +221,10 @@ console.log("isOwner:", isOwner);
             Export local data or upload customers to Supabase.
           </p>
 
-          <button className="save-btn" onClick={exportBackup}>
+          <button
+            className="save-btn"
+            onClick={exportBackup}
+          >
             📤 Export Backup
           </button>
 
@@ -191,8 +257,12 @@ console.log("isOwner:", isOwner);
         </div>
       )}
 
-      {/* Everyone */}
-      <div className="customer-card" style={{ marginTop: 24 }}>
+      {/* ==================== MY PASSWORD ==================== */}
+
+      <div
+        className="customer-card"
+        style={{ marginTop: 24 }}
+      >
         <h2>Security</h2>
 
         <div className="customer-form">
@@ -202,7 +272,9 @@ console.log("isOwner:", isOwner);
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) =>
+                setNewPassword(e.target.value)
+              }
               placeholder="Enter new password"
             />
           </div>
@@ -213,7 +285,9 @@ console.log("isOwner:", isOwner);
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) =>
+                setConfirmPassword(e.target.value)
+              }
               placeholder="Confirm password"
             />
           </div>
@@ -225,17 +299,23 @@ console.log("isOwner:", isOwner);
           disabled={loading}
           style={{ marginTop: 16 }}
         >
-          {loading ? "Updating..." : "🔒 Change My Password"}
+          {loading
+            ? "Updating..."
+            : "🔒 Change My Password"}
         </button>
       </div>
 
-      {/* Owner Only */}
+      {/* ==================== OWNER: STAFF PASSWORD RESET ==================== */}
+
       {isOwner && (
-        <div className="customer-card" style={{ marginTop: 24 }}>
+        <div
+          className="customer-card"
+          style={{ marginTop: 24 }}
+        >
           <h2>Staff Password Reset</h2>
 
           <p style={{ marginBottom: 16 }}>
-            Reset password for any staff member.
+            Reset password for any active staff member.
           </p>
 
           <div className="customer-form">
@@ -244,12 +324,19 @@ console.log("isOwner:", isOwner);
 
               <select
                 value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
+                onChange={(e) =>
+                  setSelectedStaff(e.target.value)
+                }
               >
-                <option value="">Select Staff</option>
+                <option value="">
+                  Select Staff
+                </option>
 
                 {staffList.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
+                  <option
+                    key={staff.id}
+                    value={staff.id}
+                  >
                     {staff.username}
                   </option>
                 ))}
@@ -262,7 +349,9 @@ console.log("isOwner:", isOwner);
               <input
                 type="password"
                 value={staffPassword}
-                onChange={(e) => setStaffPassword(e.target.value)}
+                onChange={(e) =>
+                  setStaffPassword(e.target.value)
+                }
                 placeholder="Enter new password"
               />
             </div>
@@ -282,12 +371,13 @@ console.log("isOwner:", isOwner);
           </div>
 
           <button
-            className="save-btn"
-            style={{ marginTop: 16 }}
-            onClick={resetStaffPassword}
-          >
-            🔑 Reset Staff Password
-          </button>
+  className="save-btn"
+  style={{ marginTop: 16 }}
+  onClick={resetStaffPassword}
+  disabled={loading}
+>
+  {loading ? "Resetting..." : "🔑 Reset Staff Password"}
+</button>
         </div>
       )}
     </main>

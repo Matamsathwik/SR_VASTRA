@@ -864,3 +864,22 @@ color:#5B0015;
   cursor: not-allowed;
   transform: none;
 }
+
+.customer-form-actions {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.customer-form-actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 46px;
+  margin-bottom: 0;
+}
+
+.customer-form-actions button {
+  flex: 1;
+  min-height: 46px;
+  margin-bottom: 0;
+}
