@@ -34,7 +34,13 @@ export default function Login({ onLogin }) {
         background: "linear-gradient(135deg,#4A0012,#7A0026)",
       }}
     >
-      <div className="modal-box" style={{ width: 420 }}>
+      <div
+  className="modal-box"
+  style={{
+    width: "100%",
+    maxWidth: 500,
+  }}
+>
         <div style={{ textAlign: "center", marginBottom: 25 }}>
           <img
             src="/logo.png"

@@ -1352,3 +1352,37 @@ tr:hover {
     margin: 8mm;
   }
 }
+/* ---------- Mobile Sidebar ---------- */
+@media (max-width: 600px) {
+  .sidebar {
+    width: 72px;
+    min-width: 72px;
+    padding: 12px 8px;
+  }
+
+  .logo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .logo-section {
+    margin-bottom: 18px;
+  }
+
+  .logo-section h2,
+  .logo-section p {
+    display: none;
+  }
+
+  .menu-btn {
+    width: 56px;
+    height: 48px;
+    padding: 0;
+    margin: 0 auto 8px;
+    justify-content: center;
+  }
+
+  .menu-btn span {
+    display: none;
+  }
+}
