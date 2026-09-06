@@ -44,9 +44,7 @@ export default function Returns() {
       setCustomers(customerData);
       setReturns(returnData);
 
-      if (customerData.length > 0) {
-        setSelectedCustomer(customerData[0].id);
-      }
+      
     } catch (err) {
       console.error("Returns load error:", err);
       alert("Failed to load return data.");
@@ -189,15 +187,14 @@ export default function Returns() {
         refundAmount: finalReturnAmount,
         createdBy: currentUser?.id || null,
 
-        items: returnedItems.map(
-          (item) => ({
-            stockId: item.stockId,
-            category:
-              item.category || "Item",
-            qty: item.returnQty,
-            price: item.price,
-          })
-        ),
+        items: returnedItems.map((item) => ({
+  stockId: item.stockId,
+  stockNo: item.stockNo,
+  itemName: item.itemName,
+  category: item.category || "Item",
+  qty: item.returnQty,
+  price: item.price,
+})),
       });
 
       // Adjust bill due
@@ -313,6 +310,7 @@ await billService.update(bill.id, {
                     setReturnQty({});
                   }}
                 >
+                  <option value="">Select Customer</option>
                   {customers.map((c) => (
                     <option
                       key={c.id}
@@ -404,10 +402,10 @@ await billService.update(bill.id, {
                     (item, index) => (
                       <tr key={index}>
                         <td>
-                          {item.category ||
-                            item.itemName ||
-                            "Item"}
-                        </td>
+  {item.itemName || item.category || "Item"}
+  {item.stockNo &&
+    ` (${String(item.stockNo).replace(/\D/g, "")})`}
+</td>
 
                         <td>
                           {item.qty}

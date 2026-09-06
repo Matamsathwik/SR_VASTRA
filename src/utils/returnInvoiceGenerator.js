@@ -69,32 +69,51 @@ doc.text(`Staff: SR Vastra`, 5, y);
     y += 4;
 
     autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      margin: { left: 5, right: 5 },
-      head: [["Item", "Qty", "Rate"]],
-      body: (returnData.items || []).map((i) => [
-  i.category,
-  String(i.returnQty || i.qty),
-  String(i.price),
+  startY: y,
+  theme: "grid",
+  margin: { left: 5, right: 5 },
+
+  head: [["S.No", "Item", "Qty", "Rate", "Amt"]],
+
+  body: (returnData.items || []).map((item, index) => [
+  String(index + 1),
+
+  `${item.itemName || item.category || "Item"}${
+    item.stockNo
+      ? ` (${String(item.stockNo).replace(/\D/g, "")})`
+      : ""
+  }`,
+
+  String(item.returnQty || item.qty),
+  String(item.price),
+  String(
+    (item.returnQty || item.qty) * Number(item.price || 0)
+  ),
 ]),
-      headStyles: {
-        fillColor: [74, 0, 18],
-        textColor: 255,
-        fontSize: 8,
-        halign: "center",
-      },
-      styles: {
-        font: "helvetica",
-        fontSize: 7,
-        cellPadding: 2,
-      },
-      columnStyles: {
-        0: { cellWidth: 36 },
-        1: { cellWidth: 12, halign: "center" },
-        2: { cellWidth: 22, halign: "right" },
-      },
-    });
+
+  headStyles: {
+    fillColor: [74, 0, 18],
+    textColor: 255,
+    halign: "center",
+    fontSize: 8,
+  },
+
+  styles: {
+    font: "helvetica",
+    fontStyle: "normal",
+    fontSize: 7,
+    cellPadding: 2,
+    valign: "middle",
+  },
+
+  columnStyles: {
+    0: { cellWidth: 8, halign: "center" },  // S.No
+    1: { cellWidth: 28, halign: "left" },   // Item
+    2: { cellWidth: 9, halign: "center" },  // Qty
+    3: { cellWidth: 12, halign: "right" },  // Rate
+    4: { cellWidth: 13, halign: "right" },  // Amt
+  },
+});
 
     y = doc.lastAutoTable.finalY + 5;
 

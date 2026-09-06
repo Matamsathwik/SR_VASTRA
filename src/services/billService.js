@@ -52,11 +52,13 @@ export const billService = {
 
         // Purchased items
         items: (b.bill_items || []).map((i) => ({
-          stockId: i.stock_id,
-          category: i.category,
-          qty: Number(i.qty || 0),
-          price: Number(i.price || 0),
-        })),
+  stockId: i.stock_id,
+  stockNo: i.stock_no,
+  itemName: i.item_name,
+  category: i.category,
+  qty: Number(i.qty || 0),
+  price: Number(i.price || 0),
+})),
       };
     });
   },
@@ -76,7 +78,18 @@ export const billService = {
 
     if (error) throw error;
 
-    return data;
+return data.map((b) => ({
+  ...b,
+
+  bill_items: (b.bill_items || []).map((i) => ({
+    stock_id: i.stock_id,
+    stock_no: i.stock_no,
+    item_name: i.item_name,
+    category: i.category,
+    qty: Number(i.qty || 0),
+    price: Number(i.price || 0),
+  })),
+}));
   },
 
   // Create a new bill
@@ -122,12 +135,14 @@ export const billService = {
 
     // Save bill items
     const items = (bill.items || []).map((i) => ({
-      bill_id: data.id,
-      stock_id: i.stockId,
-      category: i.category,
-      qty: Number(i.qty || 0),
-      price: Number(i.price || 0),
-    }));
+  bill_id: data.id,
+  stock_id: i.stockId,
+  stock_no: i.stockNo,
+  item_name: i.itemName,
+  category: i.category,
+  qty: Number(i.qty || 0),
+  price: Number(i.price || 0),
+}));
 
     if (items.length > 0) {
       const { error: itemError } = await supabase

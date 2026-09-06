@@ -31,9 +31,9 @@ export const stockService = {
 
   return data.map((s) => ({
     id: s.id,
-    stockId: s.id,
-
-    stockNo: s.stock_no,
+    stockNo: s.stock_no
+      ? String(s.stock_no).replace(/\D/g, "")
+      : "",
     supplier: s.supplier,
     itemName: s.item_name,
     category: s.category,

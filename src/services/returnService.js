@@ -97,12 +97,14 @@ export const returnService = {
     // --------------------------------------------------
 
     const items = payload.items.map((item) => ({
-      return_id: ret.id,
-      stock_id: item.stockId,
-      category: item.category || "Item",
-      qty: Number(item.qty),
-      price: Number(item.price || 0),
-    }));
+  return_id: ret.id,
+  stock_id: item.stockId,
+  item_name: item.itemName || "Item",
+  stock_no: item.stockNo || null,
+  category: item.category || "Item",
+  qty: Number(item.qty),
+  price: Number(item.price || 0),
+}));
 
     const { error: itemError } = await supabase
       .from("return_items")
@@ -187,13 +189,15 @@ export const returnService = {
       createdAt: r.created_at,
 
       items: (r.return_items || []).map((item) => ({
-        id: item.id,
-        stockId: item.stock_id,
-        category: item.category || "Item",
-        qty: Number(item.qty || 0),
-        returnQty: Number(item.qty || 0),
-        price: Number(item.price || 0),
-      })),
+  id: item.id,
+  stockId: item.stock_id,
+  itemName: item.item_name,
+  stockNo: item.stock_no,
+  category: item.category || "Item",
+  qty: Number(item.qty || 0),
+  returnQty: Number(item.qty || 0),
+  price: Number(item.price || 0),
+})),
     }));
   },
 
@@ -246,13 +250,15 @@ export const returnService = {
       createdAt: r.created_at,
 
       items: (r.return_items || []).map((item) => ({
-        id: item.id,
-        stockId: item.stock_id,
-        category: item.category || "Item",
-        qty: Number(item.qty || 0),
-        returnQty: Number(item.qty || 0),
-        price: Number(item.price || 0),
-      })),
+  id: item.id,
+  stockId: item.stock_id,
+  itemName: item.item_name,
+  stockNo: item.stock_no,
+  category: item.category || "Item",
+  qty: Number(item.qty || 0),
+  returnQty: Number(item.qty || 0),
+  price: Number(item.price || 0),
+})),
     }));
   },
 };

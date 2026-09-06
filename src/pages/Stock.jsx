@@ -75,7 +75,7 @@ export default function Stock() {
     }
 
     const item = {
-      stockNo: `ST-${Date.now().toString().slice(-6)}`,
+      
       supplier: form.supplier,
       category: form.category,
       itemName: form.itemName,
@@ -199,10 +199,12 @@ export default function Stock() {
   // FILTER
   // -----------------------------
 
-  const filteredStock = stock.filter((item) =>
-    `${item.id} ${item.stockNo} ${item.itemName} ${item.supplier} ${item.category}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  const filteredStock = stock.filter(
+    (item) =>
+      Number(item.currentQty || 0) > 0 &&
+        `${item.stockNo} ${item.itemName} ${item.supplier} ${item.category}`
+          .toLowerCase()
+          .includes(search.toLowerCase())
   );
 
   // -----------------------------
@@ -378,7 +380,7 @@ export default function Stock() {
         <table className="customer-table">
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Stock No</th>
               <th>Item</th>
               <th>Category</th>
               <th>Total Qty</th>
@@ -400,12 +402,14 @@ export default function Stock() {
               </tr>
             ) : (
               filteredStock.map((item) => (
-                <tr key={item.stockId}>
-                  <td>{item.id}</td>
+                <tr key={item.id}>
+  <td>
+    <strong>{item.stockNo || "-"}</strong>
+  </td>
 
-                  <td>
-                    <strong>{item.itemName}</strong>
-                  </td>
+  <td>
+    <strong>{item.itemName}</strong>
+  </td>
 
                   <td>{item.category}</td>
 
@@ -482,10 +486,7 @@ export default function Stock() {
             <h2>{viewItem.itemName}</h2>
 
             <div className="invoice-box">
-              <div className="invoice-row">
-                <span>Stock ID</span>
-                <strong>ST-{String(viewItem.id).padStart(4, "0")}</strong>
-              </div>
+              
 
               <div className="invoice-row">
                 <span>Stock No</span>

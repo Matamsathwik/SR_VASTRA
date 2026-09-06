@@ -138,13 +138,6 @@ th,td{
   </button>
 
   <button
-    className="save-btn"
-    onClick={handlePrint}
-  >
-    Print
-  </button>
-
-  <button
   className="save-btn"
   onClick={() => {
   const discount = Number(bill.discount || 0);

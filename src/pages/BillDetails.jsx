@@ -316,30 +316,40 @@ export default function BillDetails({ bill, customer, goBack }) {
 </div>
 
         <div className="table-card">
-          <h2>Purchased Items</h2>
+  <h2>Purchased Items</h2>
 
-          <table className="customer-table">
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Qty</th>
-                <th>Price</th>
-                <th>Total</th>
-              </tr>
-            </thead>
+  <table className="customer-table">
+    <thead>
+      <tr>
+        <th>S.No</th>
+        <th>Item</th>
+        <th>Qty</th>
+        <th>Price</th>
+        <th>Total</th>
+      </tr>
+    </thead>
 
-            <tbody>
-              {currentBill.items.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.itemName || item.category}</td>
-                  <td>{item.qty}</td>
-                  <td>₹{item.price}</td>
-                  <td>₹{item.qty * item.price}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <tbody>
+      {currentBill.items.map((item, index) => (
+        <tr key={index}>
+          <td>{index + 1}</td>
+
+          <td>
+            {item.itemName || item.category}
+            {item.stockNo &&
+              ` (${String(item.stockNo).replace(/\D/g, "")})`}
+          </td>
+
+          <td>{item.qty}</td>
+
+          <td>₹{item.price}</td>
+
+          <td>₹{item.qty * item.price}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
 
         {currentBill.due > 0 && (
           <div className="customer-card">

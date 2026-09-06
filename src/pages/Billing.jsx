@@ -50,9 +50,7 @@ export default function Billing({ user }) {
       setCustomers(customerData);
       setStock(stockData);
 
-      if (customerData.length > 0) {
-        setSelectedCustomer(customerData[0].id);
-      }
+      
     } catch (err) {
       console.error(err);
     }
@@ -305,6 +303,7 @@ export default function Billing({ user }) {
                 )
               }
             >
+              <option value="">Select Customer</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   SR-{c.id} • {c.name}

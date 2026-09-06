@@ -44,10 +44,16 @@ export default function CustomerForm({
         />
 
         <input
-          placeholder="Phone Number"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-        />
+        placeholder="Phone Number"
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={10}
+        value={phone}
+        onChange={(e) =>
+          setPhone(e.target.value.replace(/\D/g, ""))
+        }
+      />
 
         <input
           placeholder="Address"

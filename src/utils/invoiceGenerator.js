@@ -69,37 +69,49 @@ doc.text(`Customer ID: SR-${customerId}`, 5, y);
     y += 5;
 
     autoTable(doc, {
-      startY: y,
-      theme: "grid",
-      margin: { left: 5, right: 5 },
-      head: [["Item", "Qty", "Rate", "Amt"]],
-      body: (bill.items || []).map((item) => [
-  item.itemName || item.category,
-  String(item.qty),
-  String(item.price),
-  String(item.qty * item.price),
-]),
-      headStyles: {
-        fillColor: [74, 0, 18],
-        textColor: 255,
-        halign: "center",
-        fontSize: 8,
-      },
-      styles: {
-  font: "helvetica",
-  fontStyle: "normal",
-  fontSize: 7,
-  cellPadding: 2,
-  halign: "center",
-  valign: "middle",
-},
-      columnStyles: {
-  0: { cellWidth: 32, halign: "left" },
-  1: { cellWidth: 10, halign: "center" },
-  2: { cellWidth: 14, halign: "right" },
-  3: { cellWidth: 14, halign: "right" },
-},
-    });
+  startY: y,
+  theme: "grid",
+  margin: { left: 5, right: 5 },
+
+  head: [["S.No", "Item", "Qty", "Rate", "Amt"]],
+
+  body: (bill.items || []).map((item, index) => [
+    String(index + 1),
+
+    `${item.itemName || item.category}${
+      item.stockNo
+        ? ` (${String(item.stockNo).replace(/\D/g, "")})`
+        : ""
+    }`,
+
+    String(item.qty),
+    String(item.price),
+    String(item.qty * item.price),
+  ]),
+
+  headStyles: {
+    fillColor: [74, 0, 18],
+    textColor: 255,
+    halign: "center",
+    fontSize: 8,
+  },
+
+  styles: {
+    font: "helvetica",
+    fontStyle: "normal",
+    fontSize: 7,
+    cellPadding: 2,
+    valign: "middle",
+  },
+
+  columnStyles: {
+    0: { cellWidth: 8, halign: "center" },  // S.No
+    1: { cellWidth: 28, halign: "left" },   // Item
+    2: { cellWidth: 9, halign: "center" },  // Qty
+    3: { cellWidth: 12, halign: "right" },  // Rate
+    4: { cellWidth: 13, halign: "right" },  // Amt
+  },
+});
 
     y = doc.lastAutoTable.finalY + 5;
 

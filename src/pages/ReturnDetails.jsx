@@ -23,7 +23,7 @@ Your return has been processed successfully.
 • Date: ${returnData.returnDate}
 • Customer ID: ${customer?.id || "-"}
 • Reason: ${returnData.reason}
-• Item Returned: ${returnData.items?.map(i => `${i.category} × ${i.returnQty || i.qty}`).join(", ")}
+• Item Returned: ${returnData.items?.map(i => `${i.itemName || i.category} × ${i.returnQty || i.qty}`).join(", ")}
 
 ${discount > 0 ? `• Discount Applied: ${discount}\n` : ""}• Refund Adjusted: *${returnData.amount}*
 
@@ -48,52 +48,58 @@ Thank you for shopping with *SR Vastra*.
       </div>
 
       <div className="table-card">
-        <div className="modal-actions" style={{ marginBottom: 20 }}>
-          <button
-            className="save-btn"
-            onClick={() => generateReturnInvoice(returnData, customer)}
-          >
-            Download PDF
-          </button>
+        <div
+  className="modal-actions"
+  style={{ marginBottom: 20, }}
+>
+  <button
+    className="save-btn"
+    onClick={() => generateReturnInvoice(returnData, customer)}
+  >
+    Download PDF
+  </button>
 
-          
+  <button
+    className="save-btn"
+    style={{ marginTop: "4px" }}
+    onClick={() =>
+      window.open(
+        number
+          ? `https://wa.me/${number}?text=${encodeURIComponent(message)}`
+          : `https://wa.me/?text=${encodeURIComponent(message)}`,
+        "_blank"
+      )
+    }
+  >
+    WhatsApp
+  </button>
+</div>
 
-          <button
-            className="save-btn"
-            onClick={() =>
-              window.open(
-                number
-                  ? `https://wa.me/${number}?text=${encodeURIComponent(message)}`
-                  : `https://wa.me/?text=${encodeURIComponent(message)}`,
-                "_blank"
-              )
-            }
-          >
-            WhatsApp
-          </button>
-        </div>
+<h2>Returned Items</h2>
 
-        <h2>Returned Items</h2>
+<table className="customer-table">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Qty</th>
+      <th>Refund</th>
+    </tr>
+  </thead>
 
-        <table className="customer-table">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Refund</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {returnData.items?.map((i, idx) => (
-              <tr key={idx}>
-                <td>{i.category}</td>
-                <td>{i.returnQty || i.qty}</td>
-                <td>{(i.returnQty || i.qty) * i.price}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+  <tbody>
+    {returnData.items?.map((i, idx) => (
+      <tr key={idx}>
+        <td>
+          {i.itemName || i.category || "Item"}
+          {i.stockNo &&
+            ` (${String(i.stockNo).replace(/\D/g, "")})`}
+        </td>
+        <td>{i.returnQty || i.qty}</td>
+        <td>{(i.returnQty || i.qty) * i.price}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
 
         <div
           style={{

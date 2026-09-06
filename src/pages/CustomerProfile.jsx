@@ -100,7 +100,14 @@ export default function CustomerProfile({ customer, goBack }) {
           createdBy: b.staff?.username || "Unknown",
           createdAt: b.created_at,
           payments: b.payments || [],
-          items: b.bill_items || [],
+          items: (b.bill_items || []).map((i) => ({
+  stockId: i.stock_id,
+  stockNo: i.stock_no,
+  itemName: i.item_name,
+  category: i.category,
+  qty: Number(i.qty || 0),
+  price: Number(i.price || 0),
+})),
         }));
 
         setBills(formatted);
@@ -171,7 +178,14 @@ export default function CustomerProfile({ customer, goBack }) {
               createdBy: b.staff?.username || "Unknown",
               createdAt: b.created_at,
               payments: b.payments || [],
-              items: b.bill_items || [],
+              items: (b.bill_items || []).map((i) => ({
+  stockId: i.stock_id,
+  stockNo: i.stock_no,
+  itemName: i.item_name,
+  category: i.category,
+  qty: Number(i.qty || 0),
+  price: Number(i.price || 0),
+})),
             }))
           );
         } catch (error) {
@@ -504,7 +518,14 @@ const paginatedPayments = sortedPayments.slice(
           b.staff?.username || "Unknown",
         createdAt: b.created_at,
         payments: b.payments || [],
-        items: b.bill_items || [],
+        items: (b.bill_items || []).map((i) => ({
+  stockId: i.stock_id,
+  stockNo: i.stock_no,
+  itemName: i.item_name,
+  category: i.category,
+  qty: Number(i.qty || 0),
+  price: Number(i.price || 0),
+})),
       }));
 
       setBills(formatted);
@@ -967,6 +988,7 @@ Thank you.`;
             <tr>
               <th>Bill</th>
               <th>Date</th>
+              <th>Items</th>
               <th>Total</th>
               <th>Payment</th>
               <th>Status</th>
@@ -1008,7 +1030,22 @@ Thank you.`;
                     <td>
                       {b.billDate}
                     </td>
-
+                    <td>
+  {b.items?.length
+    ? b.items
+        .map(
+          (item) =>
+            `${item.item_name || item.itemName || item.category || "-"}${
+              item.stock_no || item.stockNo
+                ? ` (${String(
+                    item.stock_no || item.stockNo
+                  ).replace(/\D/g, "")})`
+                : ""
+            }`
+        )
+        .join(", ")
+    : "-"}
+</td>
                     <td>
                       ₹
                       {Number(

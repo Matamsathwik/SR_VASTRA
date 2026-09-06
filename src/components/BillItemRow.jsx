@@ -48,7 +48,7 @@ export default function BillItemRow({
         type="number"
         min="1"
         max={selectedStock?.currentQty || 1}
-        value={item.qty || 1}
+        value={item.qty}
         disabled={!item.stockId}
         onChange={(e) => {
           const qty = Number(e.target.value);
