@@ -11,8 +11,8 @@ import {
   Settings,
 } from "lucide-react";
 
-import { logoutUser } from "../data/storage";
 import { UserCog } from "lucide-react";
+import { authService } from "../services/authService";
 
 export default function Sidebar({
   page,
@@ -81,16 +81,20 @@ export default function Sidebar({
         })}
 
         <button
-          className="menu-btn"
-          onClick={() => {
-            logoutUser();
-            setUser(null);
-          }}
-          style={{ marginTop: "20px" }}
-        >
-          <LogOut size={20} />
-          <span>Logout</span>
-        </button>
+  className="menu-btn"
+  onClick={async () => {
+    try {
+      await authService.logout();
+      setUser(null);
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  }}
+  style={{ marginTop: "20px" }}
+>
+  <LogOut size={20} />
+  <span>Logout</span>
+</button>
       </nav>
     </aside>
   );

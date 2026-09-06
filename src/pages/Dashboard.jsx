@@ -151,18 +151,21 @@ export default function Dashboard({ user }) {
     paymentMap[b.paymentMode || "Cash"] += b.paid;
   });
 
-  const categoryMap = {};
+  const itemMap = {};
 
-  filteredBills.forEach((bill) =>
-    (bill.items || []).forEach((item) => {
-      categoryMap[item.category] =
-        (categoryMap[item.category] || 0) + item.qty;
-    })
-  );
+filteredBills.forEach((bill) => {
+  (bill.items || []).forEach((item) => {
+    const stockNo = String(item.stockNo || "").replace(/\D/g, "");
+    const key = `${item.itemName || "Unknown"} (${stockNo})`;
 
-  const topCategories = Object.entries(categoryMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    itemMap[key] =
+      (itemMap[key] || 0) + Number(item.qty || 0);
+  });
+});
+
+const topItems = Object.entries(itemMap)
+  .sort((a, b) => b[1] - a[1])
+  .slice(0, 5);
 
   const lowStock = stock.filter((s) => (s.currentQty || 0) <= 3);
 
@@ -360,33 +363,33 @@ export default function Dashboard({ user }) {
         </div>
 
         <div className="table-card">
-          <h2>Top Selling Categories</h2>
+          <h2>Top Selling Items</h2>
 
-          <table className="customer-table">
-            <thead>
-              <tr>
-                <th>Category</th>
-                <th>Pieces</th>
-              </tr>
-            </thead>
+<table className="customer-table">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Pieces</th>
+    </tr>
+  </thead>
 
-            <tbody>
-              {topCategories.length === 0 ? (
-                <tr>
-                  <td colSpan="2" style={{ textAlign: "center" }}>
-                    No sales yet.
-                  </td>
-                </tr>
-              ) : (
-                topCategories.map(([name, qty]) => (
-                  <tr key={name}>
-                    <td>{name}</td>
-                    <td>{qty}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+  <tbody>
+    {topItems.length === 0 ? (
+      <tr>
+        <td colSpan="2" style={{ textAlign: "center" }}>
+          No sales yet.
+        </td>
+      </tr>
+    ) : (
+      topItems.map(([name, qty]) => (
+        <tr key={name}>
+          <td>{name}</td>
+          <td>{qty}</td>
+        </tr>
+      ))
+    )}
+  </tbody>
+</table>
         </div>
 {user?.role?.toLowerCase() === "owner" && (
 
