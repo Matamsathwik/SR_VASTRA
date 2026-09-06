@@ -31,7 +31,7 @@ export default function Stock() {
 
   const [form, setForm] = useState({
     supplier: "",
-    category: "Pattu",
+    category: "",
     itemName: "",
     purchasePrice: "",
     sellingPrice: "",
@@ -59,12 +59,13 @@ export default function Stock() {
 
   const saveItem = async () => {
     if (
-      !form.supplier ||
-      !form.itemName ||
-      !form.purchasePrice ||
-      !form.sellingPrice ||
-      !form.totalQty
-    ) {
+  !form.supplier ||
+  !form.category ||
+  !form.itemName ||
+  !form.purchasePrice ||
+  !form.sellingPrice ||
+  !form.totalQty
+) {
       alert("Please fill all fields.");
       return;
     }
@@ -101,7 +102,7 @@ export default function Stock() {
 
       setForm({
         supplier: "",
-        category: "Pattu",
+        category: "",
         itemName: "",
         purchasePrice: "",
         sellingPrice: "",
@@ -282,18 +283,24 @@ export default function Stock() {
           />
 
           <select
-            value={form.category}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                category: e.target.value,
-              })
-            }
-          >
-            {categories.map((category) => (
-              <option key={category}>{category}</option>
-            ))}
-          </select>
+  value={form.category}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      category: e.target.value,
+    })
+  }
+>
+  <option value="" disabled>
+    Select Category
+  </option>
+
+  {categories.map((category) => (
+    <option key={category} value={category}>
+      {category}
+    </option>
+  ))}
+</select>
 
           <input
             placeholder="Item Name"
