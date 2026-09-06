@@ -14,7 +14,7 @@ import { stockService } from "../services/stockService";
 import { activityService } from "../services/activityService";
 
 
-export default function Dashboard() {
+export default function Dashboard({ user }) {
   const [period, setPeriod] = useState("today");
 
   const [bills, setBills] = useState(getBills());
@@ -304,7 +304,7 @@ export default function Dashboard() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))",
+          gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
           gap: 20,
           marginTop: 20,
         }}
@@ -388,6 +388,7 @@ export default function Dashboard() {
             </tbody>
           </table>
         </div>
+{user?.role?.toLowerCase() === "owner" && (
 
         <div className="table-card">
   <h2>Recent Activity</h2>
@@ -435,6 +436,7 @@ export default function Dashboard() {
     </table>
   )}
 </div>
+)}
       </div>
     </main>
   );

@@ -377,29 +377,202 @@ padding:12px;
 cursor:pointer;
 }
 
-/* ---------- Responsive ---------- */
+/* ---------- Mobile Responsive ---------- */
 
-@media(max-width:900px){
+@media (max-width: 900px) {
 
-.sidebar{
-width:210px;
+  .app {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sidebar {
+    width: 210px;
+    flex-shrink: 0;
+  }
+
+  .content {
+    min-width: 0;
+    width: 100%;
+    padding: 20px;
+    overflow-x: hidden;
+  }
+
+  .content h1,
+  .customer-title {
+    font-size: 28px;
+    margin-bottom: 18px;
+  }
+
+  .customer-form {
+    grid-template-columns: 1fr;
+  }
+
+  .full {
+    grid-column: auto;
+  }
+
+  .bill-row {
+    grid-template-columns: 1fr;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .card h3 {
+    font-size: 28px;
+  }
+
+  .customer-card,
+  .bill-card,
+  .table-card,
+  .recent,
+  .profile-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  table {
+    font-size: 13px;
+  }
+
+  th,
+  td {
+    padding: 10px 8px;
+  }
+
+  .customer-info {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .bill-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .summary-card {
+    padding: 18px;
+  }
+
+  .filter-bar {
+    gap: 8px;
+    margin: 14px 0;
+  }
+
+  .filter-chip {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .modal-box {
+    width: calc(100% - 24px);
+    max-width: 460px;
+    padding: 20px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal-buttons {
+    gap: 8px;
+  }
+
+  .invoice-box {
+    padding: 12px;
+  }
+
+  .invoice-row {
+    padding: 8px 0;
+  }
+
+  .payment-box {
+    flex-wrap: wrap;
+  }
 }
 
-.customer-form{
-grid-template-columns:1fr;
-}
 
-.full{
-grid-column:auto;
-}
+/* ---------- Small Mobile ---------- */
 
-.bill-row{
-grid-template-columns:1fr;
-}
+@media (max-width: 600px) {
 
-.modal-box{
-width:90%;
-}
+  .sidebar {
+    width: 72px;
+    padding: 16px 8px;
+  }
+
+  .logo-section h2,
+  .logo-section p {
+    display: none;
+  }
+
+  .logo {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+  }
+
+  .menu-btn {
+    justify-content: center;
+    padding: 12px 6px;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .content {
+    padding: 14px;
+  }
+
+  .content h1,
+  .customer-title {
+    font-size: 24px;
+  }
+
+  input,
+  select {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .customer-card,
+  .bill-card,
+  .table-card,
+  .recent,
+  .profile-card {
+    padding: 12px;
+  }
+
+  th,
+  td {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+
+  .bill-row {
+    gap: 8px;
+  }
+
+  .modal-box {
+    width: calc(100% - 20px);
+    padding: 16px;
+  }
+
+  .modal-buttons {
+    flex-direction: column;
+  }
+
+  .customer-form-actions {
+    flex-direction: column;
+  }
+
+  .customer-form-actions button {
+    width: 100%;
+  }
 
 }
 
@@ -882,4 +1055,40 @@ color:#5B0015;
   flex: 1;
   min-height: 46px;
   margin-bottom: 0;
+}
+
+/* ---------- Mobile Tables ---------- */
+
+.table-card {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.table-card table {
+  width: 100%;
+  min-width: 0;
+}
+
+.customer-table {
+  width: 100%;
+  table-layout: auto;
+}
+
+@media (max-width: 600px) {
+  .table-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-card table {
+    width: 100%;
+    min-width: 520px;
+  }
+
+  .table-card th,
+  .table-card td {
+    white-space: nowrap;
+    padding: 9px 8px;
+    font-size: 12px;
+  }
 }

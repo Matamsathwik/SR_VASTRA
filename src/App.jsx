@@ -36,7 +36,7 @@ export default function App() {
         setUser={setUser}
       />
 
-      {page === "Dashboard" && <Dashboard />}
+      {page === "Dashboard" && <Dashboard user={user} />}
       {page === "Customers" && <Customers />}
       {page === "Billing" && <Billing user={user} />}
       {page === "Bills" && <Bills />}
@@ -44,7 +44,8 @@ export default function App() {
       {page === "Stock" && <Stock />}
       {page === "Reports" && <Reports />}
       {page === "Staff" && <StaffManagement />}
-      {page === "Activity" && <Activity />}
+      {page === "Activity" &&
+  user?.role?.toLowerCase() === "owner" && <Activity />}
       {page === "Settings" && <Settings user={user} />}
     </div>
   );
