@@ -22,7 +22,12 @@ export default function Returns() {
   const [search, setSearch] = useState("");
 
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerList, setShowCustomerList] = useState(false);
+
   const [billNo, setBillNo] = useState("");
+  const [billSearch, setBillSearch] = useState("");
+  const [showBillList, setShowBillList] = useState(false);
 
   const [reason, setReason] = useState("Exchange");
   const [returnQty, setReturnQty] = useState({});
@@ -300,54 +305,127 @@ await billService.update(bill.id, {
               <div>
                 <label>Select Customer</label>
 
-                <select
-                  value={selectedCustomer}
-                  onChange={(e) => {
-                    setSelectedCustomer(
-                      Number(e.target.value)
-                    );
-                    setBillNo("");
-                    setReturnQty({});
-                  }}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map((c) => (
-                    <option
-                      key={c.id}
-                      value={c.id}
-                    >
-                      SR-{c.id} - {c.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="search-wrap">
+  <input
+    type="text"
+    placeholder="Search customer..."
+    value={customerSearch}
+    onChange={(e) => {
+      setCustomerSearch(e.target.value);
+      setSelectedCustomer("");
+      setBillNo("");
+      setBillSearch("");
+      setReturnQty({});
+      setShowCustomerList(true);
+      setShowBillList(false);
+    }}
+    onFocus={() => setShowCustomerList(true)}
+  />
+
+  {showCustomerList && (
+    <div className="search-dropdown">
+      {customers
+        .filter((c) => {
+          const term = customerSearch
+            .toLowerCase()
+            .trim();
+
+          return (
+            !term ||
+            c.name?.toLowerCase().includes(term) ||
+            String(c.id).includes(term) ||
+            c.phone?.includes(term)
+          );
+        })
+        .map((c) => (
+          <button
+            type="button"
+            key={c.id}
+            className="search-option"
+            onClick={() => {
+              setSelectedCustomer(Number(c.id));
+              setCustomerSearch(c.name);
+              setBillNo("");
+              setBillSearch("");
+              setReturnQty({});
+              setShowCustomerList(false);
+            }}
+          >
+            SR-{c.id} • {c.name}
+            {c.phone ? ` • ${c.phone}` : ""}
+          </button>
+        ))}
+
+      {customers.length === 0 && (
+        <div className="search-empty">
+          No customers found
+        </div>
+      )}
+    </div>
+  )}
+</div>
               </div>
 
               {/* BILL */}
               <div>
                 <label>Select Bill</label>
 
-                <select
-                  value={billNo}
-                  onChange={(e) => {
-                    setBillNo(
-                      Number(e.target.value)
-                    );
-                    setReturnQty({});
-                  }}
-                >
-                  <option value="">
-                    Select Bill
-                  </option>
+                <div className="search-wrap">
+  <input
+    type="text"
+    placeholder="Search bill..."
+    value={billSearch}
+    onChange={(e) => {
+      setBillSearch(e.target.value);
+      setBillNo("");
+      setBillSearch("");
+setShowBillList(false);
+      setReturnQty({});
+      setShowBillList(true);
+    }}
+    onFocus={() => setShowBillList(true)}
+  />
 
-                  {customerBills.map((b) => (
-                    <option
-                      key={b.id}
-                      value={b.billNo}
-                    >
-                      #{b.billNo} • {b.billDate}
-                    </option>
-                  ))}
-                </select>
+  {showBillList && (
+    <div className="search-dropdown">
+      {customerBills
+        .filter((b) => {
+          const term = billSearch.toLowerCase().trim();
+
+          return (
+            !term ||
+            String(b.billNo).includes(term) ||
+            String(b.billDate)
+              .toLowerCase()
+              .includes(term)
+          );
+        })
+        .map((b) => (
+          <button
+            type="button"
+            key={b.id}
+            className="search-option"
+            onClick={() => {
+              setBillNo(Number(b.billNo));
+              setBillSearch(
+                `#${b.billNo} • ${b.billDate}`
+              );
+              setReturnQty({});
+              setShowBillList(false);
+            }}
+          >
+            #{b.billNo} • {b.billDate}
+          </button>
+        ))}
+
+      {customerBills.length === 0 && (
+        <div className="search-empty">
+          No bills found for this customer
+        </div>
+      )}
+    </div>
+  )}
+</div>
               </div>
 
               {/* REASON */}

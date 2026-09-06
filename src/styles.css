@@ -1092,3 +1092,77 @@ color:#5B0015;
     font-size: 12px;
   }
 }
+/* ---------- Search Dropdown ---------- */
+
+.search-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #E5D7C3;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0,0,0,.12);
+  max-height: 240px;
+  overflow-y: auto;
+  z-index: 100;
+}
+
+.search-option {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid #EFE3D0;
+  background: white;
+  color: #2C1810;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.search-option:hover {
+  background: #FFF9EF;
+}
+
+.search-option:last-child {
+  border-bottom: none;
+}
+
+/* ---------- Billing Item Search ---------- */
+
+.search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.search-wrap input {
+  width: 100%;
+}
+
+.search-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.search-option strong {
+  font-size: 14px;
+}
+
+.search-option span {
+  font-size: 13px;
+}
+
+.search-option small {
+  font-size: 11px;
+  color: #777;
+}
+
+.search-empty {
+  padding: 14px;
+  text-align: center;
+  color: #777;
+  font-size: 14px;
+}

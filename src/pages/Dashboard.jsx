@@ -347,7 +347,7 @@ export default function Dashboard({ user }) {
 
               <tbody>
                 {lowStock.map((s) => (
-                  <tr key={s.stockId}>
+                  <tr key={s.id}>
                     <td>{s.itemName}</td>
                     <td style={{ color: "#C0392B", fontWeight: 700 }}>
                       {s.currentQty}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import BillItemRow from "../components/BillItemRow";
 import BillSuccessModal from "../components/BillSuccessModal";
 import { stockService } from "../services/stockService";
@@ -14,7 +14,9 @@ export default function Billing({ user }) {
 
   const [customerType, setCustomerType] = useState("existing");
   const [selectedCustomer, setSelectedCustomer] = useState("");
-
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerList, setShowCustomerList] = useState(false);
+  const customerSearchRef = useRef(null);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     phone: "",
@@ -39,6 +41,25 @@ export default function Billing({ user }) {
   useEffect(() => {
     loadData();
   }, []);
+  useEffect(() => {
+  const handleOutsideClick = (event) => {
+    if (
+      customerSearchRef.current &&
+      !customerSearchRef.current.contains(event.target)
+    ) {
+      setShowCustomerList(false);
+    }
+  };
+
+  document.addEventListener("pointerdown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener(
+      "pointerdown",
+      handleOutsideClick
+    );
+  };
+}, []);
 
   const loadData = async () => {
     try {
@@ -115,7 +136,7 @@ export default function Billing({ user }) {
       createdBy: currentUser.id,
       items,
     };
-
+    const customerSearchRef = useRef(null);
     try {
       // Create new customer if selected
       if (customerType === "new") {
@@ -267,9 +288,15 @@ export default function Billing({ user }) {
 
             <select
               value={customerType}
-              onChange={(e) =>
-                setCustomerType(e.target.value)
-              }
+              onChange={(e) => {
+  setCustomerType(e.target.value);
+
+  if (e.target.value === "new") {
+    setSelectedCustomer("");
+    setCustomerSearch("");
+    setShowCustomerList(false);
+  }
+}}
             >
               <option value="existing">
                 Existing Customer
@@ -291,27 +318,60 @@ export default function Billing({ user }) {
           </div>
         </div>
 
-        {customerType === "existing" && (
-          <div style={{ marginTop: 20 }}>
-            <label>Select Customer</label>
+       <div
+  ref={customerSearchRef}
+  style={{ marginTop: 20, position: "relative" }}
+>
+  <label>Select Customer</label>
 
-            <select
-              value={selectedCustomer}
-              onChange={(e) =>
-                setSelectedCustomer(
-                  Number(e.target.value)
-                )
-              }
-            >
-              <option value="">Select Customer</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  SR-{c.id} • {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+  <input
+    type="text"
+    placeholder="Search customer..."
+    value={
+      selectedCustomer
+        ? customers.find(
+            (c) => Number(c.id) === Number(selectedCustomer)
+          )?.name || customerSearch
+        : customerSearch
+    }
+    onChange={(e) => {
+      setCustomerSearch(e.target.value);
+      setSelectedCustomer("");
+      setShowCustomerList(true);
+    }}
+    onFocus={() => setShowCustomerList(true)}
+  />
+
+  {showCustomerList && (
+    <div className="search-dropdown">
+      {customers
+        .filter((c) => {
+          const search = customerSearch.toLowerCase();
+
+          return (
+            c.name?.toLowerCase().includes(search) ||
+            String(c.id).includes(search) ||
+            c.phone?.includes(search)
+          );
+        })
+        .map((c) => (
+          <button
+            type="button"
+            key={c.id}
+            className="search-option"
+            onClick={() => {
+              setSelectedCustomer(c.id);
+              setCustomerSearch(c.name);
+              setShowCustomerList(false);
+            }}
+          >
+            SR-{c.id} • {c.name}
+            {c.phone ? ` • ${c.phone}` : ""}
+          </button>
+        ))}
+    </div>
+  )}
+</div>
 
         {customerType === "new" && (
           <div
