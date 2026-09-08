@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReturnDetails from "./ReturnDetails";
 import { returnService } from "../services/returnService";
 import { billService } from "../services/billService";
@@ -25,6 +25,9 @@ export default function Returns() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerList, setShowCustomerList] = useState(false);
 
+  const customerSearchRef = useRef(null);
+  const billSearchRef = useRef(null);
+
   const [billNo, setBillNo] = useState("");
   const [billSearch, setBillSearch] = useState("");
   const [showBillList, setShowBillList] = useState(false);
@@ -35,6 +38,33 @@ export default function Returns() {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+  const handleOutsideClick = (event) => {
+    if (
+      customerSearchRef.current &&
+      !customerSearchRef.current.contains(event.target)
+    ) {
+      setShowCustomerList(false);
+    }
+
+    if (
+      billSearchRef.current &&
+      !billSearchRef.current.contains(event.target)
+    ) {
+      setShowBillList(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleOutsideClick);
+
+  return () => {
+    document.removeEventListener(
+      "mousedown",
+      handleOutsideClick
+    );
+  };
+}, []);
 
   const loadData = async () => {
     try {
@@ -57,17 +87,24 @@ export default function Returns() {
   };
 
   const customerBills = useMemo(() => {
-    return bills
-      .filter(
-        (bill) =>
-          Number(bill.customerId) ===
-          Number(selectedCustomer)
-      )
-      .sort(
-        (a, b) =>
-          Number(b.billNo) - Number(a.billNo)
-      );
-  }, [bills, selectedCustomer]);
+  return bills
+    .filter(
+      (bill) =>
+        Number(bill.customerId) ===
+        Number(selectedCustomer)
+    )
+    .sort((a, b) => {
+      const dateA = new Date(
+        `${a.billDate}T00:00:00`
+      ).getTime();
+
+      const dateB = new Date(
+        `${b.billDate}T00:00:00`
+      ).getTime();
+
+      return dateB - dateA;
+    });
+}, [bills, selectedCustomer]);
 
   const bill = customerBills.find(
     (b) => Number(b.billNo) === Number(billNo)
@@ -247,6 +284,11 @@ await billService.update(bill.id, {
 
       setReturnQty({});
       setBillNo("");
+      setBillSearch("");
+      setSelectedCustomer("");
+      setCustomerSearch("");
+      setShowCustomerList(false);
+      setShowBillList(false);
       setReason("Exchange");
     } catch (err) {
       console.error("Return save error:", err);
@@ -305,7 +347,10 @@ await billService.update(bill.id, {
               <div>
                 <label>Select Customer</label>
 
-                <div className="search-wrap">
+                <div
+  className="search-wrap"
+  ref={customerSearchRef}
+>
   <input
     type="text"
     placeholder="Search customer..."
@@ -370,7 +415,10 @@ await billService.update(bill.id, {
               <div>
                 <label>Select Bill</label>
 
-                <div className="search-wrap">
+                <div
+  className="search-wrap"
+  ref={billSearchRef}
+>
   <input
     type="text"
     placeholder="Search bill..."
@@ -378,12 +426,13 @@ await billService.update(bill.id, {
     onChange={(e) => {
       setBillSearch(e.target.value);
       setBillNo("");
-      setBillSearch("");
-setShowBillList(false);
       setReturnQty({});
       setShowBillList(true);
     }}
-    onFocus={() => setShowBillList(true)}
+    onFocus={() => {
+  setShowBillList(true);
+  setShowCustomerList(false);
+}}
   />
 
   {showBillList && (

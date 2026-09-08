@@ -14,9 +14,9 @@ export default function Billing({ user }) {
 
   const [customerType, setCustomerType] = useState("existing");
   const [selectedCustomer, setSelectedCustomer] = useState("");
+  const customerSearchRef = useRef(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerList, setShowCustomerList] = useState(false);
-  const customerSearchRef = useRef(null);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
     phone: "",
@@ -121,6 +121,18 @@ export default function Billing({ user }) {
       return;
     }
 
+    const invalidItem = items.find(
+  (item) =>
+    !item.stockId ||
+    Number(item.qty) <= 0 ||
+    Number(item.price) <= 0
+);
+
+if (invalidItem) {
+  alert("Please select an item and enter a valid quantity.");
+  return;
+}
+
     let customerId = selectedCustomer;
     let updatedCustomers = [...customers];
 
@@ -136,7 +148,7 @@ export default function Billing({ user }) {
       createdBy: currentUser.id,
       items,
     };
-    const customerSearchRef = useRef(null);
+    
     try {
       // Create new customer if selected
       if (customerType === "new") {
@@ -271,6 +283,10 @@ export default function Billing({ user }) {
       });
 
       setCustomerType("existing");
+      
+      setSelectedCustomer("");
+      setCustomerSearch("");
+      setShowCustomerList(false);v
     } catch (err) {
       console.error("Bill Save Error:", err);
       alert(err.message);
@@ -407,7 +423,7 @@ export default function Billing({ user }) {
 
           {items.map((item, index) => (
             <BillItemRow
-              key={index}
+              key={`${index}-${savedBill?.id || "new"}`}
               item={item}
               stock={stock}
               index={index}
