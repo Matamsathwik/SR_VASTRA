@@ -22,17 +22,34 @@ export default function Dashboard({ user }) {
   const [customers, setCustomers] = useState(getCustomers());
   const [stock, setStock] = useState(getStock());
   const [activity, setActivity] = useState([]);
+  const [returns, setReturns] = useState([]);
 
   const today = new Date();
 
+  const formatLocalDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayDate = formatLocalDate(today);
+  const weekStartDate = formatLocalDate(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6)
+  );
+  const monthStartDate = formatLocalDate(
+    new Date(today.getFullYear(), today.getMonth(), 1)
+  );
+
   const loadDashboard = async () => {
     try {
-      const [billData, customerData, stockData, activityData] =
+      const [billData, customerData, stockData, activityData, returnData] =
         await Promise.all([
           billService.getAll(),
           customerService.getAll(),
           stockService.getAll(),
           activityService.getAll(),
+          returnService.getAll(),
   ]);
 
       const formattedBills = billData;
@@ -45,6 +62,7 @@ export default function Dashboard({ user }) {
       setCustomers(customerData);
       setStock(stockData);
       setActivity(activityData);
+      setReturns(returnData || []);
     } catch (err) {
       console.error("Dashboard sync failed:", err);
 
@@ -96,6 +114,19 @@ export default function Dashboard({ user }) {
     )
     .subscribe();
 
+  const returnsChannel = supabase
+    .channel("dashboard-returns")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "returns",
+      },
+      loadDashboard
+    )
+    .subscribe();
+
   const activityChannel = supabase
     .channel("dashboard-activity")
     .on(
@@ -114,6 +145,7 @@ export default function Dashboard({ user }) {
     supabase.removeChannel(stockChannel);
     supabase.removeChannel(customerChannel);
     supabase.removeChannel(activityChannel);
+    supabase.removeChannel(returnsChannel);
   };
 }, []);
 
@@ -121,35 +153,72 @@ export default function Dashboard({ user }) {
 
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
-      const d = new Date(bill.billDate);
-
       if (period === "today") {
-        return bill.billDate === today.toISOString().split("T")[0];
+        return bill.billDate === todayDate;
       }
 
       if (period === "week") {
-        const diff = (today - d) / (1000 * 60 * 60 * 24);
-        return diff <= 6 && diff >= 0;
+        return bill.billDate >= weekStartDate && bill.billDate <= todayDate;
       }
 
-      return (
-        d.getMonth() === today.getMonth() &&
-        d.getFullYear() === today.getFullYear()
-      );
+      return bill.billDate >= monthStartDate && bill.billDate <= todayDate;
     });
-  }, [period, bills]);
+  }, [period, bills, todayDate, weekStartDate, monthStartDate]);
 
-  const totalSales = filteredBills.reduce(
-  (s, b) => s + Number(b.total || 0),
-  0
-);
+  const totalGrossSales = filteredBills.reduce(
+    (s, b) => s + Number(b.total || 0),
+    0
+  );
+
+  const filteredReturns = returns.filter((ret) => {
+    if (period === "today") {
+      return ret.returnDate === todayDate;
+    }
+
+    if (period === "week") {
+      return ret.returnDate >= weekStartDate && ret.returnDate <= todayDate;
+    }
+
+    return ret.returnDate >= monthStartDate && ret.returnDate <= todayDate;
+  });
+
+  const totalReturns = filteredReturns.reduce(
+    (s, r) => s + Number(r.amount || 0),
+    0
+  );
+
+  const totalSales = Math.max(0, totalGrossSales - totalReturns);
   const totalBills = filteredBills.length;
-  const pendingDue = filteredBills.reduce((s, b) => s + Number(b.due || 0),0);
+
+  const totalCollected = filteredBills.reduce(
+    (s, b) => s + Number(b.paid || 0),
+    0
+  );
+
+  const pendingDue = Math.max(0, totalSales - totalCollected);
 
   const paymentMap = { Cash: 0, UPI: 0, Card: 0 };
 
-  filteredBills.forEach((b) => {
-    paymentMap[b.paymentMode || "Cash"] += b.paid;
+  // Count actual payments made during the selected period.
+  bills.forEach((bill) => {
+    (bill.payments || []).forEach((payment) => {
+      const paymentDate = payment.date || bill.billDate;
+      let inPeriod = false;
+
+      if (period === "today") {
+        inPeriod = paymentDate === todayDate;
+      } else if (period === "week") {
+        inPeriod = paymentDate >= weekStartDate && paymentDate <= todayDate;
+      } else {
+        inPeriod = paymentDate >= monthStartDate && paymentDate <= todayDate;
+      }
+
+      if (!inPeriod) return;
+
+      const mode = payment.mode || "Cash";
+      if (paymentMap[mode] === undefined) paymentMap[mode] = 0;
+      paymentMap[mode] += Number(payment.amount || 0);
+    });
   });
 
   const itemMap = {};
@@ -170,26 +239,44 @@ const topItems = Object.entries(itemMap)
 
   const lowStock = stock.filter((s) => (s.currentQty || 0) <= 3);
 
-  const last7 = [...Array(7)].map((_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
+  // ---------- Last 7 Days ----------
+const last7 = Array.from({ length: 7 }, (_, i) => {
+  const d = new Date();
 
-    const date = d.toISOString().split("T")[0];
+  d.setDate(d.getDate() - (6 - i));
 
-    const total = bills
-      .filter((b) => b.billDate === date)
-      .reduce((s, b) => s + b.total, 0);
+  const date = getLocalDate(d);
 
-    return {
-      label: d.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-      }),
-      total,
-    };
-  });
+  const gross = bills
+    .filter((b) => b.billDate === date)
+    .reduce(
+      (sum, b) => sum + Number(b.total || 0),
+      0
+    );
 
-  const maxSale = Math.max(...last7.map((d) => d.total), 1);
+  const returned = returns
+    .filter((r) => r.returnDate === date)
+    .reduce(
+      (sum, r) => sum + Number(r.amount || 0),
+      0
+    );
+
+  const total = gross - returned;
+
+  return {
+    date,
+    label: d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+    }),
+    total,
+  };
+});
+
+const maxSale = Math.max(
+  ...last7.map((d) => Math.abs(d.total)),
+  1
+);
 
   return (
     <main className="content">
@@ -227,7 +314,7 @@ const topItems = Object.entries(itemMap)
           }}
         >
           <h3 style={{ color: "#fff" }}>₹{totalSales}</h3>
-          <p>Total Sales</p>
+          <p>Net Sales</p>
         </div>
 
         <div
@@ -267,42 +354,53 @@ const topItems = Object.entries(itemMap)
       <div className="table-card" style={{ marginTop: 22 }}>
         <h2>7-Day Sales Trend</h2>
 
-        <svg viewBox="0 0 420 180" width="100%" height="220">
-          {last7.map((d, i) => {
-            const h = (d.total / maxSale) * 120;
+        <svg
+  viewBox="0 0 420 180"
+  width="100%"
+  height="220"
+>
+  {last7.map((d, i) => {
+    const h = (d.total / maxSale) * 120;
+    const barHeight = Math.abs(h);
 
-            return (
-              <g key={i}>
-                <rect
-                  x={25 + i * 55}
-                  y={145 - h}
-                  width="32"
-                  height={h}
-                  rx="6"
-                  fill="#A50034"
-                />
+    return (
+      <g key={d.date}>
+        <rect
+          x={25 + i * 55}
+          y={h >= 0 ? 145 - barHeight : 145}
+          width="32"
+          height={barHeight}
+          rx="6"
+          fill="#A50034"
+        />
 
-                <text
-                  x={41 + i * 55}
-                  y="168"
-                  textAnchor="middle"
-                  fontSize="10"
-                >
-                  {d.label}
-                </text>
+        <text
+          x={41 + i * 55}
+          y="168"
+          textAnchor="middle"
+          fontSize="10"
+        >
+          {d.label}
+        </text>
 
-                <text
-                  x={41 + i * 55}
-                  y={140 - h}
-                  textAnchor="middle"
-                  fontSize="9"
-                >
-                  {d.total}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+        <text
+          x={41 + i * 55}
+          y={
+            h >= 0
+              ? 140 - barHeight
+              : 150 + barHeight
+          }
+          textAnchor="middle"
+          fontSize="9"
+        >
+          {d.total < 0
+            ? `-₹${Math.abs(d.total)}`
+            : `₹${d.total}`}
+        </text>
+      </g>
+    );
+  })}
+</svg>
       </div>
 
       <div
@@ -397,8 +495,27 @@ const topItems = Object.entries(itemMap)
         <div className="table-card">
   <h2>Recent Activity</h2>
 
-  {activity.length === 0 ? (
-    <p>No activity yet.</p>
+  {activity.filter((a) => {
+    const activityDate = new Date(a.created_at);
+    const activityLocalDate = formatLocalDate(activityDate);
+
+    if (period === "today") {
+      return activityLocalDate === todayDate;
+    }
+
+    if (period === "week") {
+      return (
+        activityLocalDate >= weekStartDate &&
+        activityLocalDate <= todayDate
+      );
+    }
+
+    return (
+      activityLocalDate >= monthStartDate &&
+      activityLocalDate <= todayDate
+    );
+  }).length === 0 ? (
+    <p>No activity for this period.</p>
   ) : (
     <table className="customer-table">
       <thead>
@@ -411,28 +528,40 @@ const topItems = Object.entries(itemMap)
 
       <tbody>
         {activity
-  .filter((a) => {
-    const activityDate = new Date(a.created_at);
-    const todayDate = new Date();
+          .filter((a) => {
+            const activityDate = new Date(a.created_at);
+            const activityLocalDate =
+              formatLocalDate(activityDate);
 
-    return (
-      activityDate.getFullYear() === todayDate.getFullYear() &&
-      activityDate.getMonth() === todayDate.getMonth() &&
-      activityDate.getDate() === todayDate.getDate()
-    );
-  })
-  .slice(0, 6)
-  .map((a) => (
+            if (period === "today") {
+              return activityLocalDate === todayDate;
+            }
+
+            if (period === "week") {
+              return (
+                activityLocalDate >= weekStartDate &&
+                activityLocalDate <= todayDate
+              );
+            }
+
+            return (
+              activityLocalDate >= monthStartDate &&
+              activityLocalDate <= todayDate
+            );
+          })
+          .slice(0, 6)
+          .map((a) => (
             <tr key={a.id}>
               <td>{a.username}</td>
-
               <td>{a.action}</td>
-
               <td>
-                {new Date(a.created_at).toLocaleTimeString("en-IN", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
+                {new Date(a.created_at).toLocaleTimeString(
+                  "en-IN",
+                  {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  }
+                )}
               </td>
             </tr>
           ))}

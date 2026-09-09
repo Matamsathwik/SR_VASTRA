@@ -27,6 +27,9 @@ export default function App() {
     return <Login onLogin={setUser} />;
   }
 
+  const isOwner =
+    user?.role?.toLowerCase() === "owner";
+
   return (
     <div className="app">
       <Sidebar
@@ -36,17 +39,37 @@ export default function App() {
         setUser={setUser}
       />
 
-      {page === "Dashboard" && <Dashboard user={user} />}
+      {page === "Dashboard" && (
+        <Dashboard user={user} />
+      )}
+
       {page === "Customers" && <Customers />}
-      {page === "Billing" && <Billing user={user} />}
+
+      {page === "Billing" && (
+        <Billing user={user} />
+      )}
+
       {page === "Bills" && <Bills />}
+
       {page === "Returns" && <Returns />}
+
       {page === "Stock" && <Stock />}
-      {page === "Reports" && <Reports />}
-      {page === "Staff" && <StaffManagement />}
-      {page === "Activity" &&
-  user?.role?.toLowerCase() === "owner" && <Activity />}
-      {page === "Settings" && <Settings user={user} />}
+
+      {page === "Reports" && isOwner && (
+        <Reports />
+      )}
+
+      {page === "Staff" && isOwner && (
+        <StaffManagement />
+      )}
+
+      {page === "Activity" && isOwner && (
+        <Activity />
+      )}
+
+      {page === "Settings" && (
+        <Settings user={user} />
+      )}
     </div>
   );
 }

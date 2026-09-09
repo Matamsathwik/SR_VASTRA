@@ -27,15 +27,14 @@ export default function Sidebar({
   { name: "Bills", icon: FileText },
   { name: "Returns", icon: RotateCcw },
   { name: "Stock", icon: Package },
-  { name: "Reports", icon: BarChart3 },
-
   // Owner-only menus
-  ...(user?.role?.toLowerCase() === "owner"
-    ? [
-        { name: "Staff", icon: UserCog },
-        { name: "Activity", icon: History },
-      ]
-    : []),
+...(user?.role?.toLowerCase() === "owner"
+  ? [
+      { name: "Reports", icon: BarChart3 },
+      { name: "Staff", icon: UserCog },
+      { name: "Activity", icon: History },
+    ]
+  : []),
 
   // Everyone gets Settings
   { name: "Settings", icon: Settings },

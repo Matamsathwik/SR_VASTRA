@@ -149,7 +149,6 @@ const periodReturnCount = periodReturns.length;
   );
 
   // ---------- Last 7 Days ----------
-  // ---------- Last 7 Days ----------
 const last7 = Array.from({ length: 7 }, (_, i) => {
   const d = new Date();
 
@@ -171,7 +170,7 @@ const last7 = Array.from({ length: 7 }, (_, i) => {
       0
     );
 
-  const total = Math.max(0, gross - returned);
+  const total = gross - returned;
 
   return {
     date,
@@ -184,7 +183,7 @@ const last7 = Array.from({ length: 7 }, (_, i) => {
 });
 
   const maxSale = Math.max(
-    ...last7.map((d) => d.total),
+    ...last7.map((d) => Math.abs(d.total)),
     1
   );
 
@@ -436,46 +435,59 @@ const paymentBreakdown = Object.entries(paymentMap);
         <h2>7-Day Sales Trend</h2>
 
         <svg
-          viewBox="0 0 420 180"
-          width="100%"
-          height="220"
+  viewBox="0 0 420 220"
+  width="100%"
+  height="220"
+>
+  {last7.map((d, i) => {
+    const chartCenter = 105;
+    const chartHeight = 120;
+    const scale = chartHeight / maxSale;
+    const barHeight = Math.abs(d.total) * scale;
+
+    const x = 25 + i * 55;
+
+    const y =
+      d.total >= 0
+        ? chartCenter - barHeight
+        : chartCenter;
+
+    return (
+      <g key={d.date}>
+        <rect
+          x={x}
+          y={y}
+          width="32"
+          height={barHeight}
+          rx="6"
+          fill="#A50034"
+        />
+
+        <text
+          x={41 + i * 55}
+          y="135"
+          textAnchor="middle"
+          fontSize="10"
         >
-          {last7.map((d, i) => {
-            const h =
-              (d.total / maxSale) * 120;
+          {d.label}
+        </text>
 
-            return (
-              <g key={d.date}>
-                <rect
-                  x={25 + i * 55}
-                  y={145 - h}
-                  width="32"
-                  height={h}
-                  rx="6"
-                  fill="#A50034"
-                />
-
-                <text
-                  x={41 + i * 55}
-                  y="168"
-                  textAnchor="middle"
-                  fontSize="10"
-                >
-                  {d.label}
-                </text>
-
-                <text
-                  x={41 + i * 55}
-                  y={140 - h}
-                  textAnchor="middle"
-                  fontSize="9"
-                >
-                  ₹{d.total}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+        <text
+          x={41 + i * 55}
+          y={
+            d.total >= 0
+              ? Math.max(12, y - 5)
+              : y + barHeight + 14
+          }
+          textAnchor="middle"
+          fontSize="9"
+        >
+          {d.total < 0 ? `−₹${Math.abs(d.total)}` : `₹${d.total}`}
+        </text>
+      </g>
+    );
+  })}
+</svg>
       </div>
 
       {/* ================= EXPORT ================= */}

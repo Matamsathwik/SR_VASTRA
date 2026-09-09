@@ -163,8 +163,10 @@ export const returnService = {
       returnNo: r.id,
 
       returnDate: r.created_at
-        ? r.created_at.split("T")[0]
-        : "",
+        ? new Date(r.created_at).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        })
+      : "",
 
       billId: r.bill_id,
 
@@ -228,9 +230,10 @@ export const returnService = {
       returnNo: r.id,
 
       returnDate: r.created_at
-        ? r.created_at.split("T")[0]
-        : "",
-
+        ? new Date(r.created_at).toLocaleDateString("en-CA", {
+          timeZone: "Asia/Kolkata",
+        })
+      : "",
       billId: r.bill_id,
 
       billNo: r.bills?.bill_no || "-",
