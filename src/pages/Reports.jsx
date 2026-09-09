@@ -12,6 +12,7 @@ import {
 } from "../utils/exportExcel";
 
 export default function Reports() {
+  const [period, setPeriod] = useState("today");
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [returns, setReturns] = useState([]);
@@ -58,20 +59,82 @@ export default function Reports() {
 
   const today = getLocalDate();
 
-  // ---------- Summary ----------
-  const todayBills = bills.filter(
-    (b) => b.billDate === today
+  // ---------- Period Filter ----------
+
+const getPeriodDateRange = () => {
+  const now = new Date();
+
+  if (period === "today") {
+    return {
+      start: today,
+      end: today,
+    };
+  }
+
+  if (period === "week") {
+    const start = new Date(now);
+    start.setDate(now.getDate() - 6);
+
+    return {
+      start: getLocalDate(start),
+      end: today,
+    };
+  }
+
+  // This Month
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    1
   );
 
-  const todaySales = todayBills.reduce(
-    (sum, b) => sum + Number(b.total || 0),
-    0
-  );
+  return {
+    start: getLocalDate(start),
+    end: today,
+  };
+};
 
-  const pendingDue = bills.reduce(
-    (sum, b) => sum + Number(b.due || 0),
-    0
-  );
+const { start: periodStart, end: periodEnd } =
+  getPeriodDateRange();
+
+const periodBills = bills.filter(
+  (bill) =>
+    bill.billDate >= periodStart &&
+    bill.billDate <= periodEnd
+);
+
+const periodReturns = returns.filter(
+  (ret) =>
+    ret.returnDate >= periodStart &&
+    ret.returnDate <= periodEnd
+);
+
+// ---------- Summary ----------
+
+const grossSales = periodBills.reduce(
+  (sum, bill) => sum + Number(bill.total || 0),
+  0
+);
+
+const totalReturns = periodReturns.reduce(
+  (sum, ret) => sum + Number(ret.amount || 0),
+  0
+);
+
+const netSales = grossSales - totalReturns;
+
+const totalCollected = periodBills.reduce(
+  (sum, bill) => sum + Number(bill.paid || 0),
+  0
+);
+
+const pendingDue = Math.max(
+  0,
+  netSales - totalCollected
+);
+
+const periodBillCount = periodBills.length;
+const periodReturnCount = periodReturns.length;
 
   const stockValue = stock.reduce(
     (sum, item) =>
@@ -86,29 +149,39 @@ export default function Reports() {
   );
 
   // ---------- Last 7 Days ----------
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
+  // ---------- Last 7 Days ----------
+const last7 = Array.from({ length: 7 }, (_, i) => {
+  const d = new Date();
 
-    d.setDate(d.getDate() - (6 - i));
+  d.setDate(d.getDate() - (6 - i));
 
-    const date = getLocalDate(d);
+  const date = getLocalDate(d);
 
-    const total = bills
-      .filter((b) => b.billDate === date)
-      .reduce(
-        (sum, b) => sum + Number(b.total || 0),
-        0
-      );
+  const gross = bills
+    .filter((b) => b.billDate === date)
+    .reduce(
+      (sum, b) => sum + Number(b.total || 0),
+      0
+    );
 
-    return {
-      date,
-      label: d.toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-      }),
-      total,
-    };
-  });
+  const returned = returns
+    .filter((r) => r.returnDate === date)
+    .reduce(
+      (sum, r) => sum + Number(r.amount || 0),
+      0
+    );
+
+  const total = Math.max(0, gross - returned);
+
+  return {
+    date,
+    label: d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+    }),
+    total,
+  };
+});
 
   const maxSale = Math.max(
     ...last7.map((d) => d.total),
@@ -118,7 +191,7 @@ export default function Reports() {
   // ---------- Top Selling Items ----------
 const itemMap = {};
 
-bills.forEach((bill) => {
+periodBills.forEach((bill) => {
   (bill.items || []).forEach((item) => {
     const stockNo = String(item.stockNo || "").replace(/\D/g, "");
     const key = `${item.itemName || "Unknown"} (${stockNo})`;
@@ -135,7 +208,7 @@ const topItems = Object.entries(itemMap)
   // ---------- Top Customers ----------
   const customerMap = {};
 
-  bills.forEach((bill) => {
+  periodBills.forEach((bill) => {
     const customerId = bill.customerId;
 
     if (!customerId) return;
@@ -168,23 +241,34 @@ const topItems = Object.entries(itemMap)
   );
 
   // ---------- Payment Breakdown ----------
-  const paymentMap = {
-    Cash: 0,
-    UPI: 0,
-    Card: 0,
-  };
+const paymentMap = {
+  Cash: 0,
+  UPI: 0,
+  Card: 0,
+};
 
-  bills.forEach((bill) => {
-    const mode = bill.paymentMode || "Cash";
+periodBills.forEach((bill) => {
+  (bill.payments || []).forEach((payment) => {
+    const paymentDate = payment.date || bill.billDate;
+
+    if (
+      paymentDate < periodStart ||
+      paymentDate > periodEnd
+    ) {
+      return;
+    }
+
+    const mode = payment.mode || "Cash";
 
     if (!paymentMap[mode]) {
       paymentMap[mode] = 0;
     }
 
-    paymentMap[mode] += Number(bill.paid || 0);
+    paymentMap[mode] += Number(payment.amount || 0);
   });
+});
 
-  const paymentBreakdown = Object.entries(paymentMap);
+const paymentBreakdown = Object.entries(paymentMap);
 
   // ---------- Pending Bills ----------
   const pendingBills = bills
@@ -198,21 +282,27 @@ const topItems = Object.entries(itemMap)
     })
     .slice(0, 5);
 
-  if (loading) {
-    return (
-      <main className="content">
-        <h1>Reports</h1>
-
-        <div className="table-card">
-          <p>Loading reports...</p>
-        </div>
-      </main>
-    );
-  }
 
   return (
-    <main className="content">
-      <h1>Reports</h1>
+  <main className="content">
+    <h1>Reports</h1>
+
+    <div className="filter-bar">
+      {["today", "week", "month"].map((p) => (
+        <button
+          key={p}
+          className={`filter-chip ${period === p ? "active" : ""}`}
+          onClick={() => setPeriod(p)}
+        >
+          {p === "today"
+            ? "Today"
+            : p === "week"
+            ? "This Week"
+            : "This Month"}
+        </button>
+      ))}
+    </div>
+
 
       {/* ================= SUMMARY ================= */}
 
@@ -234,11 +324,15 @@ const topItems = Object.entries(itemMap)
           }}
         >
           <h3 style={{ color: "white" }}>
-            ₹{todaySales}
+            ₹{netSales}
           </h3>
 
           <p style={{ color: "#FDE68A" }}>
-            Today's Sales
+            {period === "today"
+  ? "Today's Net Sales"
+  : period === "week"
+  ? "This Week's Net Sales"
+  : "This Month's Net Sales"}
           </p>
         </div>
 
@@ -251,11 +345,15 @@ const topItems = Object.entries(itemMap)
           }}
         >
           <h3 style={{ color: "white" }}>
-            {todayBills.length}
+            {periodBillCount}
           </h3>
 
           <p style={{ color: "#FFF7CC" }}>
-            Today's Bills
+            {period === "today"
+              ? "Today's Bills"
+              : period === "week"
+              ? "This Week's Bills"
+              : "This Month's Bills"}
           </p>
         </div>
 
@@ -302,11 +400,15 @@ const topItems = Object.entries(itemMap)
           }}
         >
           <h3 style={{ color: "white" }}>
-            {todayReturns.length}
+            {periodReturnCount}
           </h3>
 
           <p style={{ color: "#E9D5FF" }}>
-            Returns Today
+            {period === "today"
+  ? "Returns Today"
+  : period === "week"
+  ? "Returns This Week"
+  : "Returns This Month"}
           </p>
         </div>
 
