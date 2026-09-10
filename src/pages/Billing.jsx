@@ -286,7 +286,7 @@ if (invalidItem) {
       
       setSelectedCustomer("");
       setCustomerSearch("");
-      setShowCustomerList(false);v
+      setShowCustomerList(false);
     } catch (err) {
       console.error("Bill Save Error:", err);
       alert(err.message);

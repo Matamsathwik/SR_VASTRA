@@ -239,6 +239,13 @@ const topItems = Object.entries(itemMap)
 
   const lowStock = stock.filter((s) => (s.currentQty || 0) <= 3);
 
+  const getLocalDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
   // ---------- Last 7 Days ----------
 const last7 = Array.from({ length: 7 }, (_, i) => {
   const d = new Date();
