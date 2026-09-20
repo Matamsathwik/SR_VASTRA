@@ -2356,3 +2356,21 @@ tr:hover {
   margin-top: 12px;
   margin-bottom: 20px;
 }
+
+.sr-customer-report-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.sr-customer-report-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.sr-customer-report-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sr-customer-report-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}

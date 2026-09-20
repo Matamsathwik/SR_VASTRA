@@ -1666,11 +1666,14 @@ export default function Reports() {
         </div>
 
         <div
+          className="sr-customer-report-scroll"
           style={{
             marginTop: "20px",
             border: "1px solid #e2e8f0",
             borderRadius: "12px",
-            overflow: "hidden",
+            overflowX: "auto",
+            overflowY: "hidden",
+            WebkitOverflowScrolling: "touch",
           }}
         >
           <div
