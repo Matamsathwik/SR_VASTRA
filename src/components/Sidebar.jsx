@@ -5,6 +5,7 @@ import {
   FileText,
   RotateCcw,
   Package,
+  ShoppingCart,
   BarChart3,
   LogOut,
   History,
@@ -27,6 +28,7 @@ export default function Sidebar({
   { name: "Bills", icon: FileText },
   { name: "Returns", icon: RotateCcw },
   { name: "Stock", icon: Package },
+  { name: "Purchases", icon: ShoppingCart },
   // Owner-only menus
 ...(user?.role?.toLowerCase() === "owner"
   ? [

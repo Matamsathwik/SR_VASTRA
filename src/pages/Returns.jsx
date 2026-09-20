@@ -6,6 +6,7 @@ import { customerService } from "../services/customerService";
 import { activityService } from "../services/activityService";
 import { stockService } from "../services/stockService";
 import { authService } from "../services/authService";
+import { Html5Qrcode } from "html5-qrcode";
 
 const reasons = ["Exchange", "Damaged", "Wrong Item", "Other"];
 
@@ -29,11 +30,19 @@ export default function Returns() {
   const billSearchRef = useRef(null);
 
   const [billNo, setBillNo] = useState("");
+  const [selectedBillId, setSelectedBillId] = useState(null);
   const [billSearch, setBillSearch] = useState("");
   const [showBillList, setShowBillList] = useState(false);
+  const [stock, setStock] = useState([]);
 
   const [reason, setReason] = useState("Exchange");
+  const [settlementType, setSettlementType] = useState("CREDIT");
   const [returnQty, setReturnQty] = useState({});
+
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannedItem, setScannedItem] = useState(null);
+  const [savingReturn, setSavingReturn] = useState(false);
+  const scannerRef = useRef(null);
 
   useEffect(() => {
     loadData();
@@ -68,16 +77,18 @@ export default function Returns() {
 
   const loadData = async () => {
     try {
-      const [billData, customerData, returnData] =
+      const [billData, customerData, returnData, stockData] =
         await Promise.all([
           billService.getAll(),
           customerService.getAll(),
           returnService.getAll(),
+          stockService.getAll(),
         ]);
 
       setBills(billData);
       setCustomers(customerData);
       setReturns(returnData);
+      setStock(stockData);
 
       
     } catch (err) {
@@ -106,22 +117,49 @@ export default function Returns() {
     });
 }, [bills, selectedCustomer]);
 
-  const bill = customerBills.find(
-    (b) => Number(b.billNo) === Number(billNo)
-  );
+  const bill = selectedBillId
+    ? bills.find((b) => Number(b.id) === Number(selectedBillId))
+    : null;
 
   const customer = customers.find(
     (c) => Number(c.id) === Number(selectedCustomer)
   );
 
+  const customerCurrentDue = customer
+    ? bills
+        .filter(
+          (b) => Number(b.customerId) === Number(customer.id)
+        )
+        .reduce(
+          (sum, b) => sum + Number(b.due || 0),
+          0
+        )
+    : 0;
+
+  const customerPreviousDue = Number(
+    customer?.previous_due || 0
+  );
+
+  const customerTotalPending =
+    customerCurrentDue + customerPreviousDue;
+
+  const returnCustomer = customer
+    ? {
+        ...customer,
+        totalPending: customerTotalPending,
+      }
+    : null;
+
   const todayReturns = returns.filter(
     (r) => r.returnDate === selectedDate
   );
 
-  const todayRefund = todayReturns.reduce(
-    (sum, r) => sum + Number(r.amount || 0),
-    0
-  );
+  const todayRefund = todayReturns
+    .filter((r) => r.settlementType === "REFUND")
+    .reduce(
+      (sum, r) => sum + Number(r.amount || 0),
+      0
+    );
 
   const filteredReturns = useMemo(() => {
     const term = search.toLowerCase().trim();
@@ -154,9 +192,214 @@ export default function Returns() {
       );
   }, [returns, selectedDate, search]);
 
+  const stopBarcodeScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        await scannerRef.current.clear();
+      } catch (error) {
+        console.error("Return scanner stop error:", error);
+      }
+      scannerRef.current = null;
+    }
+
+    setShowScanner(false);
+  };
+
+  const handleBarcodeScan = async (code) => {
+    const cleanCode = String(code || "").trim();
+
+    if (!cleanCode) return;
+
+    if (!selectedCustomer) {
+      alert("Select a customer first.");
+      return;
+    }
+
+    try {
+      const stockItem = stock.find(
+        (item) =>
+          String(item.barcode || "").trim() === cleanCode
+      );
+
+      if (!stockItem) {
+        alert("Barcode not found in stock.");
+        return;
+      }
+
+      const customerBillsForItem = bills
+        .filter(
+          (b) =>
+            Number(b.customerId) === Number(selectedCustomer) &&
+            Array.isArray(b.items)
+        )
+        .sort((a, b) => {
+          const dateA = new Date(
+            `${a.billDate}T00:00:00`
+          ).getTime();
+          const dateB = new Date(
+            `${b.billDate}T00:00:00`
+          ).getTime();
+
+          if (dateB !== dateA) return dateB - dateA;
+
+          return Number(b.billNo) - Number(a.billNo);
+        });
+
+      // Find the newest bill where this exact stock item
+      // still has quantity available for return.
+      const matchingBill = customerBillsForItem.find((b) => {
+        const item = b.items.find(
+          (saleItem) =>
+            Number(saleItem.stockId) === Number(stockItem.id) ||
+            String(saleItem.barcode || "").trim() === cleanCode
+        );
+
+        if (!item) return false;
+
+        const purchasedQty = Number(item.qty || 0);
+
+        const alreadyReturnedQty = returns
+          .filter(
+            (r) =>
+              Number(r.billId) === Number(b.id) &&
+              Number(r.customerId) === Number(selectedCustomer)
+          )
+          .reduce((total, r) => {
+            const returnItems =
+              r.items || r.returnItems || r.return_items || [];
+
+            return (
+              total +
+              returnItems.reduce((itemTotal, returnedItem) => {
+                const sameItem =
+                  Number(returnedItem.stockId) === Number(stockItem.id) ||
+                  String(returnedItem.barcode || "").trim() === cleanCode;
+
+                return sameItem
+                  ? itemTotal + Number(returnedItem.qty || 0)
+                  : itemTotal;
+              }, 0)
+            );
+          }, 0);
+
+        const remainingQty = purchasedQty - alreadyReturnedQty;
+
+        return remainingQty > 0;
+      });
+
+      if (!matchingBill) {
+        alert(
+          "No remaining quantity is available for return for this item."
+        );
+        return;
+      }
+
+      const itemIndex = matchingBill.items.findIndex(
+        (item) =>
+          Number(item.stockId) === Number(stockItem.id) ||
+          String(item.barcode || "").trim() === cleanCode
+      );
+
+      if (itemIndex === -1) {
+        alert("Original sale item not found.");
+        return;
+      }
+
+      const originalItem = matchingBill.items[itemIndex];
+
+      setSelectedBillId(matchingBill.id);
+      setBillNo(matchingBill.billNo);
+      setBillSearch(
+        `#${matchingBill.billNo} • ${matchingBill.billDate}`
+      );
+
+      setScannedItem({
+        ...originalItem,
+        billId: matchingBill.id,
+        billNo: matchingBill.billNo,
+        billDate: matchingBill.billDate,
+        billDiscount: Number(matchingBill.discount || 0),
+        billTotal: Number(matchingBill.total || 0),
+        billPaid: Number(matchingBill.paid || 0),
+        billDue: Number(matchingBill.due || 0),
+        paymentMode: matchingBill.paymentMode,
+        itemIndex,
+        barcode: cleanCode,
+      });
+
+      setReturnQty({ [itemIndex]: 1 });
+
+      await stopBarcodeScanner();
+    } catch (error) {
+      console.error("Return barcode error:", error);
+      alert(error.message || "Unable to process barcode.");
+      await stopBarcodeScanner();
+    }
+  };
+
+  const startBarcodeScanner = async () => {
+    const reader = document.getElementById("return-barcode-reader");
+
+    if (!reader) return;
+
+    try {
+      const scanner = new Html5Qrcode("return-barcode-reader");
+      scannerRef.current = scanner;
+
+      await scanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 300, height: 120 },
+        },
+        async (decodedText) => {
+          console.log("RETURN BARCODE:", decodedText);
+          await stopBarcodeScanner();
+          await handleBarcodeScan(decodedText);
+        },
+        () => {}
+      );
+    } catch (error) {
+      console.error("Return camera error:", error);
+      alert("Unable to open camera. Please allow camera permission.");
+      await stopBarcodeScanner();
+    }
+  };
+
+  useEffect(() => {
+    if (!showScanner) return;
+
+    const timer = setTimeout(() => {
+      startBarcodeScanner();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [showScanner]);
+
+  useEffect(() => {
+    return () => {
+      if (scannerRef.current) {
+        scannerRef.current
+          .stop()
+          .catch(() => {})
+          .finally(() => {
+            scannerRef.current = null;
+          });
+      }
+    };
+  }, []);
+
   const saveReturn = async () => {
+    if (savingReturn) return;
+
+    if (!selectedCustomer) {
+      alert("Select a customer.");
+      return;
+    }
+
     if (!bill) {
-      alert("Select a bill.");
+      alert("Scan the item's barcode first.");
       return;
     }
 
@@ -172,17 +415,49 @@ export default function Returns() {
       return;
     }
 
-    // Prevent returning more than purchased quantity
-    const invalidItem = returnedItems.find(
-      (item) =>
-        item.returnQty > Number(item.qty)
-    );
+    // Check each item against the quantity already returned
+    // from this exact bill.
+    for (const item of returnedItems) {
+      const alreadyReturnedQty = returns
+        .filter(
+          (r) =>
+            Number(r.billId) === Number(bill.id) &&
+            Number(r.customerId) === Number(selectedCustomer)
+        )
+        .reduce((total, r) => {
+          const returnItems =
+            r.items || r.returnItems || r.return_items || [];
 
-    if (invalidItem) {
-      alert(
-        `Return quantity cannot exceed bought quantity for ${invalidItem.category}.`
-      );
-      return;
+          return (
+            total +
+            returnItems.reduce((itemTotal, returnedItem) => {
+              const sameItem =
+                Number(returnedItem.stockId) === Number(item.stockId) ||
+                (
+                  item.barcode &&
+                  String(returnedItem.barcode || "").trim() ===
+                    String(item.barcode || "").trim()
+                );
+
+              return sameItem
+                ? itemTotal + Number(returnedItem.qty || 0)
+                : itemTotal;
+            }, 0)
+          );
+        }, 0);
+
+      const remainingQty =
+        Number(item.qty || 0) - alreadyReturnedQty;
+
+      if (item.returnQty > remainingQty) {
+        alert(
+          `Cannot return ${item.returnQty} item(s). Only ${Math.max(
+            0,
+            remainingQty
+          )} remaining for return.`
+        );
+        return;
+      }
     }
 
     const subtotal = bill.items.reduce(
@@ -218,6 +493,8 @@ export default function Returns() {
     const finalReturnAmount =
       Math.round(returnAmount);
 
+    setSavingReturn(true);
+
     try {
       const currentUser =
         await authService.currentUser();
@@ -227,40 +504,20 @@ export default function Returns() {
         customerId: customer.id,
         reason,
         refundAmount: finalReturnAmount,
+        settlementType,
         createdBy: currentUser?.id || null,
 
         items: returnedItems.map((item) => ({
-  stockId: item.stockId,
-  stockNo: item.stockNo,
-  itemName: item.itemName,
-  category: item.category || "Item",
-  qty: item.returnQty,
-  price: item.price,
-})),
+          stockId: item.stockId,
+          stockNo: item.stockNo,
+          itemName: item.itemName,
+          category: item.category || "Item",
+          qty: item.returnQty,
+          price: item.price,
+        })),
       });
 
-      // Adjust bill due
-      // Adjust bill due and status after return
-const newDue = Math.max(
-  0,
-  Number(bill.due || 0) - finalReturnAmount
-);
-
-const paidAmount = Number(bill.paid || 0);
-
-const newStatus =
-  newDue === 0
-    ? paidAmount > 0
-      ? "Paid"
-      : "Returned"
-    : paidAmount > 0
-    ? "Partial"
-    : "Pending";
-
-await billService.update(bill.id, {
-  due: newDue,
-  status: newStatus,
-});
+      
 
       // Activity log
       if (currentUser) {
@@ -272,48 +529,87 @@ await billService.update(bill.id, {
           role:
             currentUser.role || "staff",
           action:
-            `Created Return for Bill #${bill.billNo} - Refund ₹${finalReturnAmount}`,
+            settlementType === "CREDIT"
+              ? `Created Return for Bill #${bill.billNo} - Customer Credit ₹${finalReturnAmount}`
+              : `Created Return for Bill #${bill.billNo} - Refund Paid ₹${finalReturnAmount}`,
         });
       }
 
       await loadData();
 
       alert(
-        `Return saved successfully.\nRefund: ₹${finalReturnAmount}`
+        settlementType === "CREDIT"
+        ? `Return saved successfully.\nCustomer Credit: ₹${finalReturnAmount}`
+        : `Return saved successfully.\nRefund Paid: ₹${finalReturnAmount}`
       );
 
       setReturnQty({});
       setBillNo("");
+      setSelectedBillId(null);
       setBillSearch("");
+      setScannedItem(null);
       setSelectedCustomer("");
       setCustomerSearch("");
       setShowCustomerList(false);
       setShowBillList(false);
       setReason("Exchange");
+      setSettlementType("CREDIT");
     } catch (err) {
       console.error("Return save error:", err);
       alert(err.message || "Failed to save return.");
+    } finally {
+      setSavingReturn(false);
     }
   };
 
   if (selectedReturn) {
-    const returnCustomer =
-      customers.find(
-        (c) =>
-          Number(c.id) ===
-          Number(selectedReturn.customerId)
-      ) || customer;
+  const returnCustomer =
+    customers.find(
+      (c) =>
+        Number(c.id) ===
+        Number(selectedReturn.customerId)
+    ) || null;
 
-    return (
-      <ReturnDetails
-        returnData={selectedReturn}
-        customer={returnCustomer}
-        goBack={() =>
-          setSelectedReturn(null)
-        }
-      />
-    );
-  }
+  const returnCustomerCurrentDue = returnCustomer
+    ? bills
+        .filter(
+          (b) =>
+            Number(b.customerId) ===
+            Number(returnCustomer.id)
+        )
+        .reduce(
+          (sum, b) =>
+            sum + Number(b.due || 0),
+          0
+        )
+    : 0;
+
+  const returnCustomerPreviousDue = Number(
+    returnCustomer?.previous_due || 0
+  );
+
+  const returnCustomerTotalPending =
+    returnCustomerCurrentDue +
+    returnCustomerPreviousDue;
+
+  const customerForInvoice = returnCustomer
+    ? {
+        ...returnCustomer,
+        totalPending:
+          returnCustomerTotalPending,
+      }
+    : null;
+
+  return (
+    <ReturnDetails
+      returnData={selectedReturn}
+      customer={customerForInvoice}
+      goBack={() =>
+        setSelectedReturn(null)
+      }
+    />
+  );
+}
 
   return (
     <main className="content">
@@ -328,7 +624,7 @@ await billService.update(bill.id, {
 
         <div className="card">
           <h3>₹{todayRefund}</h3>
-          <p>Today's Refund</p>
+          <p>Today's Refund Paid</p>
         </div>
       </div>
 
@@ -391,8 +687,11 @@ await billService.update(bill.id, {
               setSelectedCustomer(Number(c.id));
               setCustomerSearch(c.name);
               setBillNo("");
+              setSelectedBillId(null);
               setBillSearch("");
               setReturnQty({});
+              setScannedItem(null);
+              setShowBillList(false);
               setShowCustomerList(false);
             }}
           >
@@ -416,65 +715,80 @@ await billService.update(bill.id, {
                 <label>Select Bill</label>
 
                 <div
-  className="search-wrap"
-  ref={billSearchRef}
->
-  <input
-    type="text"
-    placeholder="Search bill..."
-    value={billSearch}
-    onChange={(e) => {
-      setBillSearch(e.target.value);
-      setBillNo("");
-      setReturnQty({});
-      setShowBillList(true);
-    }}
-    onFocus={() => {
-  setShowBillList(true);
-  setShowCustomerList(false);
-}}
-  />
+                  className="search-wrap"
+                  ref={billSearchRef}
+                >
+                  <input
+                    type="text"
+                    placeholder="Search bill..."
+                    value={billSearch}
+                    onChange={(e) => {
+                      setBillSearch(e.target.value);
+                      setBillNo("");
+                      setSelectedBillId(null);
+                      setReturnQty({});
+                      setScannedItem(null);
+                      setShowBillList(true);
+                    }}
+                    onFocus={() => {
+                      setShowBillList(true);
+                      setShowCustomerList(false);
+                    }}
+                  />
 
-  {showBillList && (
-    <div className="search-dropdown">
-      {customerBills
-        .filter((b) => {
-          const term = billSearch.toLowerCase().trim();
+                  {showBillList && selectedCustomer && (
+                    <div className="search-dropdown">
+                      {customerBills
+                        .filter((b) => {
+                          const term = billSearch.toLowerCase().trim();
+                          return (
+                            !term ||
+                            String(b.billNo).includes(term) ||
+                            String(b.billDate).toLowerCase().includes(term)
+                          );
+                        })
+                        .map((b) => (
+                          <button
+                            type="button"
+                            key={b.id}
+                            className="search-option"
+                            onClick={() => {
+                              setSelectedBillId(b.id);
+                              setBillNo(b.billNo);
+                              setBillSearch(`#${b.billNo} • ${b.billDate}`);
+                              setReturnQty({});
+                              setScannedItem(null);
+                              setShowBillList(false);
+                            }}
+                          >
+                            #{b.billNo} • {b.billDate}
+                          </button>
+                        ))}
 
-          return (
-            !term ||
-            String(b.billNo).includes(term) ||
-            String(b.billDate)
-              .toLowerCase()
-              .includes(term)
-          );
-        })
-        .map((b) => (
-          <button
-            type="button"
-            key={b.id}
-            className="search-option"
-            onClick={() => {
-              setBillNo(Number(b.billNo));
-              setBillSearch(
-                `#${b.billNo} • ${b.billDate}`
-              );
-              setReturnQty({});
-              setShowBillList(false);
-            }}
-          >
-            #{b.billNo} • {b.billDate}
-          </button>
-        ))}
+                      {customerBills.length === 0 && (
+                        <div className="search-empty">
+                          No bills found for this customer
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-      {customerBills.length === 0 && (
-        <div className="search-empty">
-          No bills found for this customer
-        </div>
-      )}
-    </div>
-  )}
-</div>
+                <button
+                  type="button"
+                  className="scan-barcode-btn"
+                  disabled={!selectedCustomer}
+                  onClick={() => setShowScanner(true)}
+                  style={{ marginTop: 10 }}
+                >
+                  📷 Scan Barcode
+                </button>
+
+                {!selectedCustomer && (
+                  <small style={{ color: "#777", display: "block", marginTop: 6 }}>
+                    Select customer first
+                  </small>
+                )}
               </div>
 
               {/* REASON */}
@@ -494,6 +808,24 @@ await billService.update(bill.id, {
                   ))}
                 </select>
               </div>
+              {/* SETTLEMENT */}
+              <div>
+                <label>Settlement</label>
+
+                <select
+                  value={settlementType}
+                  onChange={(e) => setSettlementType(e.target.value)}
+                >
+                  <option value="CREDIT">
+                    Customer Credit
+                  </option>
+
+                  <option value="REFUND">
+                    Refund Paid
+                  </option>
+                </select>
+              </div>
+
             </div>
           </div>
 
@@ -590,12 +922,29 @@ await billService.update(bill.id, {
               <button
                 className="save-btn"
                 onClick={saveReturn}
+                disabled={savingReturn}
               >
-                Save Return
+                {savingReturn ? "Saving..." : "Save Return"}
               </button>
             </div>
           )}
         </>
+      )}
+
+      {showScanner && (
+        <div className="scanner-overlay">
+          <div className="scanner-modal">
+            <h3>Scan Return Barcode</h3>
+            <div id="return-barcode-reader"></div>
+            <button
+              type="button"
+              className="save-btn"
+              onClick={stopBarcodeScanner}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {/* SEARCH */}

@@ -29,6 +29,10 @@ export default function CustomerProfile({ customer, goBack }) {
     Number(customer.previous_due || customer.previousDue || 0)
   );
 
+  const [creditBalance, setCreditBalance] = useState(
+    Number(customer.credit_balance || 0)
+  );
+
   const [editingPreviousDue, setEditingPreviousDue] = useState(false);
 
   const [dueInput, setDueInput] = useState(
@@ -144,7 +148,7 @@ export default function CustomerProfile({ customer, goBack }) {
             await Promise.all([
               supabase
                 .from("customers")
-                .select("previous_due")
+                .select("previous_due, credit_balance")
                 .eq("id", customer.id)
                 .single(),
               billService.getByCustomer(customer.id),
@@ -156,6 +160,9 @@ export default function CustomerProfile({ customer, goBack }) {
             );
             setPreviousDue(latestPreviousDue);
             setDueInput(latestPreviousDue);
+            setCreditBalance(
+              Number(customerData.credit_balance || 0)
+            );
           }
           setBills(
             data.map((b) => ({
@@ -385,18 +392,41 @@ const paginatedPayments = sortedPayments.slice(
   // -----------------------------
 
   const totalPurchase = bills.reduce(
-    (sum, b) => sum + Number(b.total || 0),
-    0
-  );
+  (sum, b) => sum + Number(b.total || 0),
+  0
+);
 
-  const currentDue = bills.reduce(
-    (sum, b) => sum + Number(b.due || 0),
-    0
-  );
+// Calculate returns against each bill.
+// Do NOT use b.due as the source of truth.
+const getBillReturnAmount = (billId) => {
+  return returns
+    .filter((r) => Number(r.billId) === Number(billId))
+    .reduce(
+      (sum, r) =>
+        sum + Number(r.amount || r.refundAmount || 0),
+      0
+    );
+};
 
-  const totalPending =
-    Number(previousDue || 0) +
-    Number(currentDue || 0);
+const getBillOutstanding = (bill) => {
+  const returnedAmount = getBillReturnAmount(bill.id);
+
+  return Math.max(
+    0,
+    Number(bill.total || 0) -
+      returnedAmount -
+      Number(bill.paid || 0)
+  );
+};
+
+const currentDue = bills.reduce(
+  (sum, bill) => sum + getBillOutstanding(bill),
+  0
+);
+
+const totalPending =
+  Number(previousDue || 0) +
+  Number(currentDue || 0);
 
   // -----------------------------
   // Add / Update Previous Due
@@ -579,22 +609,22 @@ const paginatedPayments = sortedPayments.slice(
 
     const message = `Hello ${customer.name},
 
-This is a reminder from SR Vastra regarding your pending balance.
+      This is a reminder from SR Vastra regarding your pending balance.
 
-Total Pending Amount: ₹${totalPending.toLocaleString(
-      "en-IN"
-    )}
+      Total Pending Amount: ₹${totalPending.toLocaleString(
+        "en-IN"
+      )}
 
-Please make the payment.
+      Please make the payment AS SOON AS POSSIBLE.
 
-Thank you.`;
+      Thank you.`;
 
-    const whatsappUrl =
-      `https://wa.me/${phone}?text=` +
-      encodeURIComponent(message);
+      const whatsappUrl =
+        `https://wa.me/${phone}?text=` +
+        encodeURIComponent(message);
 
-    window.open(whatsappUrl, "_blank");
-  };
+      window.open(whatsappUrl, "_blank");
+    };
 
   // -----------------------------
   // Bill Details
@@ -965,14 +995,27 @@ Thank you.`;
         </div>
 
         <div className="card">
+  <h3>
+    ₹{Number(creditBalance || 0).toLocaleString("en-IN")}
+  </h3>
+  <p>Customer Credit</p>
+</div>
+
+        <div className="card">
           <h3>{bills.length}</h3>
           <p>Bills</p>
         </div>
 
-        <div className="card">
+        <div
+          className="card"
+          style={{
+            background: "#DCEFEF",
+            color: "#0F766E",
+          }}
+        >
           <h3>{returns.length}</h3>
-          <p>Returns</p>
-        </div>
+          <p style={{ color: "#0F766E" }}>Returns</p>
+      </div>
 
       </div>
 
@@ -1087,12 +1130,7 @@ Thank you.`;
                         fontWeight: 700,
                       }}
                     >
-                      ₹
-                      {Number(
-                        b.due
-                      ).toLocaleString(
-                        "en-IN"
-                      )}
+                      ₹{getBillOutstanding(b).toLocaleString("en-IN")}
                     </td>
 
                   </tr>
@@ -1104,41 +1142,76 @@ Thank you.`;
         </table>
         {purchaseTotalPages > 1 && (
   <div
-    style={{
-      display: "flex",
-      justifyContent: "flex-end",
-      alignItems: "center",
-      gap: 12,
-      marginTop: 16,
-    }}
-  >
-    <button
-      className="back-btn"
-      disabled={purchasePage === 1}
-      onClick={() =>
-        setPurchasePage((page) => Math.max(1, page - 1))
-      }
-    >
-      ← Previous
-    </button>
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    marginTop: 16,
+  }}
+>
+  <button
+  
+  disabled={purchasePage === 1}
+  onClick={() =>
+    setPurchasePage((page) => Math.max(1, page - 1))
+  }
+  style={{
+    width: "90px",
+    height: "36px",
+    padding: "0",
+    margin: "0",
+    border: "none",
+    borderRadius: "7px",
+    background: "#8B0025",
+    color: "#fff",
+    fontWeight: 600,
+    fontSize: "12px",
+    cursor: "pointer",
+    flex: "0 0 90px",
+  }}
+>
+  ← Previous
+</button>
 
-    <span style={{ fontWeight: 600 }}>
-      Page {purchasePage} of {purchaseTotalPages}
-    </span>
+  <span
+  style={{
+    minWidth: "80px",
+    textAlign: "center",
+    whiteSpace: "nowrap",
+    fontWeight: 600,
+    fontSize: "12px",
+  }}
+>
+  Page {purchasePage} of {purchaseTotalPages}
+</span>
 
-    <button
-      className="primary-btn"
-      style={{ width: "auto", flex: "0 0 auto" }}
-      disabled={purchasePage === purchaseTotalPages}
-      onClick={() =>
-        setPurchasePage((page) =>
-          Math.min(purchaseTotalPages, page + 1)
-        )
-      }
-    >
-      Next →
-    </button>
-  </div>
+  <button
+  disabled={purchasePage === purchaseTotalPages}
+  onClick={() =>
+    setPurchasePage((page) =>
+      Math.min(purchaseTotalPages, page + 1)
+    )
+  }
+  style={{
+    width: "90px",
+    height: "36px",
+    padding: "0",
+    margin: "0",
+    border: "none",
+    borderRadius: "7px",
+    background: "linear-gradient(90deg, #8B0025, #C58A00)",
+    color: "#fff",
+    fontWeight: 600,
+    fontSize: "12px",
+    cursor: "pointer",
+    flex: "0 0 90px",
+  }}
+>
+  Next →
+</button>
+</div>
 )}
         
 
@@ -1225,35 +1298,69 @@ Thank you.`;
   <div
     style={{
       display: "flex",
-      justifyContent: "flex-end",
+      justifyContent: "center",
       alignItems: "center",
-      gap: 12,
+      gap: 8,
+      width: "100%",
       marginTop: 16,
     }}
   >
     <button
-      className="back-btn"
       disabled={returnPage === 1}
       onClick={() =>
         setReturnPage((page) => Math.max(1, page - 1))
       }
+      style={{
+        width: "90px",
+        height: "36px",
+        padding: "0",
+        margin: "0",
+        border: "none",
+        borderRadius: "7px",
+        background: "#8B0025",
+        color: "#fff",
+        fontWeight: 600,
+        fontSize: "12px",
+        cursor: "pointer",
+        flex: "0 0 90px",
+      }}
     >
       ← Previous
     </button>
 
-    <span style={{ fontWeight: 600 }}>
+    <span
+      style={{
+        minWidth: "80px",
+        textAlign: "center",
+        whiteSpace: "nowrap",
+        fontWeight: 600,
+        fontSize: "12px",
+      }}
+    >
       Page {returnPage} of {returnTotalPages}
     </span>
 
     <button
-      className="primary-btn"
-      style={{ width: "auto", flex: "0 0 auto" }}
       disabled={returnPage === returnTotalPages}
       onClick={() =>
         setReturnPage((page) =>
           Math.min(returnTotalPages, page + 1)
         )
       }
+      style={{
+        width: "90px",
+        height: "36px",
+        padding: "0",
+        margin: "0",
+        border: "none",
+        borderRadius: "7px",
+        background: "linear-gradient(90deg, #8B0025, #C58A00)",
+        color: "#fff",
+        fontWeight: 600,
+        fontSize: "12px",
+        cursor: "pointer",
+        flex: "0 0 90px",
+      }}
     >
       Next →
     </button>
@@ -1342,44 +1449,78 @@ Thank you.`;
 
         </table>
 
-        {paymentTotalPages > 1 && (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              alignItems: "center",
-              gap: 12,
-              marginTop: 16,
-            }}
-          >
-            <button
-              className="back-btn"
-              disabled={paymentPage === 1}
-              onClick={() =>
-                setPaymentPage((page) => Math.max(1, page - 1))
-              }
-            >
-              ← Previous
-            </button>
+        {purchaseTotalPages > 1 && (
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      width: "100%",
+      marginTop: 16,
+    }}
+  >
+    <button
+      disabled={purchasePage === 1}
+      onClick={() =>
+        setPurchasePage((page) => Math.max(1, page - 1))
+      }
+      style={{
+        width: "90px",
+        height: "36px",
+        padding: "0",
+        margin: "0",
+        border: "none",
+        borderRadius: "7px",
+        background: "#8B0025",
+        color: "#fff",
+        fontWeight: 600,
+        fontSize: "12px",
+        cursor: "pointer",
+        flex: "0 0 90px",
+      }}
+    >
+      ← Previous
+    </button>
 
-            <span style={{ fontWeight: 600 }}>
-              Page {paymentPage} of {paymentTotalPages}
-            </span>
+    <span
+      style={{
+        minWidth: "80px",
+        textAlign: "center",
+        whiteSpace: "nowrap",
+        fontWeight: 600,
+        fontSize: "12px",
+      }}
+    >
+      Page {purchasePage} of {purchaseTotalPages}
+    </span>
 
-            <button
-              className="primary-btn"
-              style={{ width: "auto", flex: "0 0 auto" }}
-              disabled={paymentPage === paymentTotalPages}
-              onClick={() =>
-                setPaymentPage((page) =>
-                  Math.min(paymentTotalPages, page + 1)
-                )
-              }
-            >
-              Next →
-            </button>
-          </div>
-        )}
+    <button
+      disabled={purchasePage === purchaseTotalPages}
+      onClick={() =>
+        setPurchasePage((page) =>
+          Math.min(purchaseTotalPages, page + 1)
+        )
+      }
+      style={{
+        width: "90px",
+        height: "36px",
+        padding: "0",
+        margin: "0",
+        border: "none",
+        borderRadius: "7px",
+        background: "linear-gradient(90deg, #8B0025, #C58A00)",
+        color: "#fff",
+        fontWeight: 600,
+        fontSize: "12px",
+        cursor: "pointer",
+        flex: "0 0 90px",
+      }}
+    >
+      Next →
+    </button>
+  </div>
+)}
 
       </div>
 

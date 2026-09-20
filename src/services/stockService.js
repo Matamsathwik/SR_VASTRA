@@ -38,6 +38,12 @@ export const stockService = {
     itemName: s.item_name,
     category: s.category,
 
+    barcode: s.barcode || "",
+    hsnCode: s.hsn_code || "",
+    gstRate: Number(s.gst_rate || 0),
+    gstInclusive: s.gst_inclusive !== false,
+    mrp: Number(s.mrp || 0),
+
     purchasePrice: s.purchase_price,
     sellingPrice: s.selling_price,
 
@@ -56,26 +62,35 @@ export const stockService = {
 },
 
   async create(item) {
-  const { data, error } = await supabase
-    .from("stock")
-    .insert({
-      supplier: item.supplier,
-      item_name: item.itemName,
-      category: item.category,
-      purchase_price: item.purchasePrice,
-      selling_price: item.sellingPrice,
-      total_qty: item.totalQty,
-      current_qty: item.currentQty,
-      status: "active",
-      status_reason: null,
-    })
-    .select()
-    .single();
+    const { data, error } = await supabase
+      .from("stock")
+      .insert({
+        supplier: item.supplier,
+        item_name: item.itemName,
+        barcode: item.barcode || null,
+        category: item.category,
 
-  if (error) throw error;
+        purchase_price: item.purchasePrice,
+        selling_price: item.sellingPrice,
+        mrp: item.mrp ?? 0,
 
-  return data;
-},
+        hsn_code: item.hsnCode || null,
+        gst_rate: item.gstRate ?? 0,
+        gst_inclusive: item.gstInclusive !== false,
+
+        total_qty: item.totalQty,
+        current_qty: item.currentQty,
+
+        status: "active",
+        status_reason: null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data;
+  },
 
   async update(id, item) {
   const { error } = await supabase
@@ -83,9 +98,14 @@ export const stockService = {
     .update({
       supplier: item.supplier,
       item_name: item.itemName,
+      barcode: item.barcode || null, 
       category: item.category,
       purchase_price: item.purchasePrice,
       selling_price: item.sellingPrice,
+      mrp: item.mrp ?? 0,
+      hsn_code: item.hsnCode || null,
+      gst_rate: item.gstRate ?? 0,
+      gst_inclusive: item.gstInclusive !== false,
       total_qty: item.totalQty,
       current_qty: item.currentQty,
     })

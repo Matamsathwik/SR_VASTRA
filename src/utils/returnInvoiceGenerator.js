@@ -2,11 +2,21 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const generateReturnInvoice = (returnData, customer) => {
+  const items = returnData.items || [];
+
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
-    format: [200, 80],
+    format: [80, 180],
   });
+
+  // Professional SR Vastra colours
+  const navy = [31, 45, 61];
+  const gold = [196, 154, 61];
+  const lightGold = [247, 242, 226];
+  const grey = [105, 105, 105];
+  const lightGrey = [235, 235, 235];
+  const black = [25, 25, 25];
 
   const logo = new Image();
   logo.src = `${window.location.origin}/logo.png`;
@@ -15,164 +25,360 @@ export const generateReturnInvoice = (returnData, customer) => {
   logo.onerror = () => createPDF(false);
 
   function createPDF(showLogo) {
-    let y = 6;
+    let y = 5;
+
+    // ==================================================
+    // HEADER - LOGO LEFT + BUSINESS DETAILS RIGHT
+    // ==================================================
 
     if (showLogo) {
-      doc.addImage(logo, "PNG", 28, y, 24, 24);
-      y += 28;
+      doc.addImage(logo, "PNG", 5, y, 19, 19);
     }
 
+    const headerX = showLogo ? 48 : 40;
+
+    doc.setTextColor(...navy);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(74, 0, 18);
-    doc.text("SR VASTRA", 40, y, { align: "center" });
+    doc.setFontSize(12);
 
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(90, 90, 90);
-    doc.text("Premium Sarees & Ethnic Wear", 40, y, { align: "center" });
-
-    y += 4;
-    doc.text("Narayankhed, Telangana", 40, y, { align: "center" });
-
-    y += 4;
-    doc.setDrawColor(212, 175, 55);
-    doc.line(5, y, 75, y);
-
-    y += 6;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-
-    doc.text(`Return #${returnData.returnNo}`, 5, y);
-    doc.text(returnData.returnDate, 75, y, { align: "right" });
-
-    y += 5;
+    doc.text("SR VASTRA", headerX, y + 6, {
+      align: "center",
+    });
 
     doc.setFont("helvetica", "normal");
-    doc.text(`Customer: ${customer?.name || "-"}`, 5, y);
+    doc.setFontSize(6.5);
 
-y += 5;
-doc.text(`Customer ID: ${customer?.id || "-"}`, 5, y);
+    doc.text(
+      "Premium Sarees & Ethnic Wear",
+      headerX,
+      y + 11,
+      {
+        align: "center",
+      }
+    );
 
-y += 5;
-doc.text(`Original Bill: #${returnData.billNo}`, 5, y);
+    doc.text(
+      "Narayankhed, Telangana",
+      headerX,
+      y + 15,
+      {
+        align: "center",
+      }
+    );
 
-y += 5;
-doc.text(`Reason: ${returnData.reason}`, 5, y);
+    y += 23;
 
-y += 5;
-doc.text(`Staff: SR Vastra`, 5, y);
+    // Gold separator
+    doc.setDrawColor(...gold);
+    doc.setLineWidth(0.6);
+    doc.line(4, y, 76, y);
 
-    y += 4;
+    // ==================================================
+    // RETURN TITLE
+    // ==================================================
+
+    y += 7;
+
+    doc.setTextColor(...navy);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+
+    doc.text("RETURN", 40, y, {
+      align: "center",
+    });
+
+    // Small gold underline
+    y += 2;
+
+    doc.setDrawColor(...gold);
+    doc.setLineWidth(0.8);
+    doc.line(30, y, 50, y);
+
+    // ==================================================
+    // CUSTOMER + DATE
+    // ==================================================
+
+    y += 7;
+
+    doc.setTextColor(...black);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+
+    const customerName =
+      customer?.name || "-";
+
+    const customerAddress =
+      customer?.address ||
+      customer?.location ||
+      "";
+
+    const customerText = customerAddress
+      ? `Customer : ${customerName}, ${customerAddress}`
+      : `Customer : ${customerName}`;
+
+    doc.text(customerText, 4, y);
+
+    y += 5;
+
+    doc.text(
+      `Return No : ${returnData.returnNo || "-"}`,
+      4,
+      y
+    );
+
+    doc.text(
+      `Date : ${returnData.returnDate || "-"}`,
+      76,
+      y,
+      {
+        align: "right",
+      }
+    );
+
+    // ==================================================
+    // ITEM TABLE
+    // ==================================================
+
+    y += 5;
 
     autoTable(doc, {
-  startY: y,
-  theme: "grid",
-  margin: { left: 5, right: 5 },
+      startY: y,
 
-  head: [["S.No", "Item", "Qty", "Rate", "Amt"]],
+      margin: {
+        left: 4,
+        right: 4,
+      },
 
-  body: (returnData.items || []).map((item, index) => [
-  String(index + 1),
+      theme: "grid",
 
-  `${item.itemName || item.category || "Item"}${
-    item.stockNo
-      ? ` (${String(item.stockNo).replace(/\D/g, "")})`
-      : ""
-  }`,
+      head: [
+        ["S.No", "Description", "Qty", "Rate", "Amt"],
+      ],
 
-  String(item.returnQty || item.qty),
-  String(item.price),
-  String(
-    (item.returnQty || item.qty) * Number(item.price || 0)
-  ),
-]),
+      body: items.map((item, index) => {
+        const qty = Number(
+          item.returnQty || item.qty || 0
+        );
 
-  headStyles: {
-    fillColor: [74, 0, 18],
-    textColor: 255,
-    halign: "center",
-    fontSize: 8,
-  },
+        const rate = Number(
+          item.price || 0
+        );
 
-  styles: {
-    font: "helvetica",
-    fontStyle: "normal",
-    fontSize: 7,
-    cellPadding: 2,
-    valign: "middle",
-  },
+        const amount = qty * rate;
 
-  columnStyles: {
-    0: { cellWidth: 8, halign: "center" },  // S.No
-    1: { cellWidth: 28, halign: "left" },   // Item
-    2: { cellWidth: 9, halign: "center" },  // Qty
-    3: { cellWidth: 12, halign: "right" },  // Rate
-    4: { cellWidth: 13, halign: "right" },  // Amt
-  },
-});
+        const stockNo = item.stockNo
+          ? ` (${String(item.stockNo).replace(/\D/g, "")})`
+          : "";
+
+        return [
+          String(index + 1),
+
+          `${item.itemName || item.category || "Item"}${stockNo}`,
+
+          String(qty),
+
+          rate.toFixed(2),
+
+          amount.toFixed(2),
+        ];
+      }),
+
+      styles: {
+        font: "helvetica",
+        fontSize: 6.5,
+        cellPadding: 1.7,
+        valign: "middle",
+
+        textColor: black,
+
+        lineColor: [150, 150, 150],
+        lineWidth: 0.15,
+      },
+
+      headStyles: {
+        fillColor: navy,
+        textColor: [255, 255, 255],
+
+        fontStyle: "bold",
+        fontSize: 6.5,
+
+        halign: "center",
+      },
+
+      alternateRowStyles: {
+        fillColor: [250, 250, 250],
+      },
+
+      columnStyles: {
+        0: {
+          cellWidth: 7,
+          halign: "center",
+        },
+
+        1: {
+          cellWidth: 31,
+          halign: "left",
+        },
+
+        2: {
+          cellWidth: 8,
+          halign: "center",
+        },
+
+        3: {
+          cellWidth: 11,
+          halign: "right",
+        },
+
+        4: {
+          cellWidth: 13,
+          halign: "right",
+        },
+      },
+    });
 
     y = doc.lastAutoTable.finalY + 5;
 
-    doc.setDrawColor(212, 175, 55);
-    doc.line(5, y, 75, y);
+    // ==================================================
+    // TOTAL AMOUNT
+    // ==================================================
 
-    y += 5;
+    const itemTotal = items.reduce(
+      (sum, item) => {
+        const qty = Number(
+          item.returnQty || item.qty || 0
+        );
 
+        const price = Number(
+          item.price || 0
+        );
+
+        return sum + qty * price;
+      },
+      0
+    );
+
+    const totalAmount = Number(
+      returnData.amount || itemTotal
+    );
+
+    doc.setDrawColor(...gold);
+    doc.setLineWidth(0.5);
+    doc.line(4, y, 76, y);
+
+    y += 6;
+
+    doc.setTextColor(...navy);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
 
-    const discount = Number(returnData.discount || 0);
-const originalBillTotal =
-  Number(returnData.originalTotal || returnData.amount + discount);
+    doc.text(
+      "Total Amount :",
+      4,
+      y
+    );
 
-doc.setTextColor(0, 0, 0);
+    // Use Rs. instead of ₹
+    // Prevents the strange "¹" rendering issue
+    doc.text(
+      `Rs. ${totalAmount.toFixed(2)}`,
+      76,
+      y,
+      {
+        align: "right",
+      }
+    );
 
-doc.text("Original Bill", 5, y);
-doc.text(String(originalBillTotal), 75, y, {
-  align: "right",
-});
+    // ==================================================
+    // CUSTOMER ACCOUNT BALANCE
+    // ==================================================
 
-if (discount > 0) {
-  y += 5;
-  doc.setTextColor(180, 120, 0);
-  doc.text("Discount", 5, y);
-  doc.text(`-${discount}`, 75, y, {
-    align: "right",
-  });
-}
+    /*
+      Prefer the actual total pending value from
+      the customer profile.
 
-y += 6;
+      Multiple fallbacks are supported so existing
+      customer data can be used without changing
+      the database.
+    */
 
-doc.setTextColor(74, 0, 18);
-doc.setFont("helvetica", "bold");
-doc.setFontSize(11);
-doc.text("Refund Adjusted", 5, y);
-doc.text(String(returnData.amount), 75, y, {
-  align: "right",
-});
+    const pendingBalance = Number(
+      customer?.totalPending ??
+      customer?.total_pending ??
+      customer?.pendingBalance ??
+      customer?.pending_balance ??
+      customer?.due ??
+      customer?.balance ??
+      0
+    );
 
     y += 8;
 
-    doc.setDrawColor(212, 175, 55);
-    doc.line(5, y - 3, 75, y - 3);
+    // Light coloured balance box
+    doc.setFillColor(...lightGold);
+    doc.roundedRect(
+      4,
+      y - 4,
+      72,
+      12,
+      1.5,
+      1.5,
+      "F"
+    );
 
-    doc.setTextColor(74, 0, 18);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setTextColor(...navy);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
 
-    doc.text("Cashier: SR Vastra", 40, y, {
-      align: "center",
-    });
+    doc.text(
+      "Your A/c Balance is :",
+      7,
+      y + 3
+    );
 
-    y += 5;
-    doc.text("Thank You • Visit Again", 40, y, {
-      align: "center",
-    });
+    doc.setTextColor(...navy);
+    doc.setFontSize(8.5);
 
-    doc.save(`SR_Vastra_Return_${returnData.returnNo}.pdf`);
+    doc.text(
+      `Rs. ${pendingBalance.toFixed(2)}`,
+      73,
+      y + 3,
+      {
+        align: "right",
+      }
+    );
+
+    // ==================================================
+    // FOOTER
+    // ==================================================
+
+    y += 18;
+
+    doc.setDrawColor(...gold);
+    doc.setLineWidth(0.5);
+    doc.line(4, y, 76, y);
+
+    y += 6;
+
+    doc.setTextColor(...navy);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+
+    doc.text(
+      "Thank You • Visit Again",
+      40,
+      y,
+      {
+        align: "center",
+      }
+    );
+
+    // ==================================================
+    // SAVE
+    // ==================================================
+
+    doc.save(
+      `SR_Vastra_Return_${returnData.returnNo}.pdf`
+    );
   }
 };

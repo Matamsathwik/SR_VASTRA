@@ -84,7 +84,8 @@ export default function InvoicePrint({ bill, customer }) {
           {bill.items.map((item, index) => (
             <tr key={index}>
               <td style={{ padding: "8px", border: "1px solid #ddd" }}>
-                {item.category}
+                {item.itemName || item.category || "-"}
+                {item.stockNo ? ` (${item.stockNo.replace("ST-", "")})` : ""}
               </td>
               <td
                 style={{

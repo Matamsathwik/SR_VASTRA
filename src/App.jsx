@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import StaffManagement from "./pages/StaffManagement";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
+import Purchases from "./pages/Purchases";
 
 import { authService } from "./services/authService";
 
@@ -54,6 +55,8 @@ export default function App() {
       {page === "Returns" && <Returns />}
 
       {page === "Stock" && <Stock />}
+
+      {page === "Purchases" && <Purchases />}
 
       {page === "Reports" && isOwner && (
         <Reports />

@@ -11,6 +11,16 @@ export default function BillItemRow({
   const [showItemList, setShowItemList] = useState(false);
   const itemSearchRef = useRef(null);
 
+  useEffect(() => {
+  if (item.itemName) {
+    setItemSearch(
+      `${item.itemName} (${item.qty || 1})`
+    );
+  } else {
+    setItemSearch("");
+  }
+}, [item.itemName, item.qty]);
+
   const availableStock = stock.filter(
     (s) => s.currentQty > 0 && s.status === "active"
   );

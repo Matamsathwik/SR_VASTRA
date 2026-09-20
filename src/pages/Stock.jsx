@@ -3,6 +3,16 @@ import { getStock, saveStock } from "../data/storage";
 import { stockService } from "../services/stockService";
 import { activityService } from "../services/activityService";
 import { authService } from "../services/authService";
+import { supplierService } from "../services/supplierService";
+import { generateBarcode } from "../utils/barcode";
+import { printStockLabel } from "../utils/stockLabel";
+
+const makeBarcode = () => {
+  const time = Date.now().toString().slice(-8);
+  const random = Math.floor(1000 + Math.random() * 9000);
+
+  return `${time}${random}`;
+};
 
 const categories = [
   "Pattu",
@@ -17,12 +27,16 @@ const categories = [
 
 export default function Stock() {
   const [stock, setStock] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
 
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [stockPage, setStockPage] = useState(1);
+  const STOCK_PER_PAGE = 10;
 
   const [adjustment, setAdjustment] = useState({
     type: "Return to Supplier",
@@ -33,6 +47,11 @@ export default function Stock() {
     supplier: "",
     category: "",
     itemName: "",
+    barcode: "",
+    hsnCode: "",
+    gstRate: 0,
+    gstInclusive: true,
+    mrp: "",
     purchasePrice: "",
     sellingPrice: "",
     totalQty: "",
@@ -40,16 +59,38 @@ export default function Stock() {
 
   useEffect(() => {
     loadStock();
+    loadSuppliers();
   }, []);
 
   const loadStock = async () => {
     try {
       const data = await stockService.getAll();
-      setStock(data);
-      saveStock(data);
+
+      const Data = [...data].sort(
+        (a, b) => Number(b.id) - Number(a.id)
+      );
+
+      setStock(Data);
+      saveStock(Data);
     } catch (err) {
       console.error(err);
-      setStock(getStock());
+
+      const cachedStock = getStock();
+
+      const CachedStock = [...cachedStock].sort(
+        (a, b) => Number(b.id) - Number(a.id)
+    );
+
+      setStock(CachedStock);
+    }
+  }
+
+  const loadSuppliers = async () => {
+    try {
+      const data = await supplierService.getAll();
+      setSuppliers(data || []);
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
     }
   };
 
@@ -80,6 +121,13 @@ export default function Stock() {
       supplier: form.supplier,
       category: form.category,
       itemName: form.itemName,
+      barcode: generateBarcode(),
+
+      hsnCode: form.hsnCode.trim() || null,
+      gstRate: Number(form.gstRate || 0),
+      gstInclusive: form.gstInclusive !== false,
+      mrp: Number(form.mrp || 0),
+
       purchasePrice: Number(form.purchasePrice),
       sellingPrice: Number(form.sellingPrice),
       totalQty: Number(form.totalQty),
@@ -104,6 +152,11 @@ export default function Stock() {
         supplier: "",
         category: "",
         itemName: "",
+        barcode: "",
+        hsnCode: "",
+        gstRate: 0,
+        gstInclusive: true,
+        mrp: "",
         purchasePrice: "",
         sellingPrice: "",
         totalQty: "",
@@ -205,8 +258,18 @@ export default function Stock() {
       Number(item.currentQty || 0) > 0 &&
         `${item.stockNo} ${item.itemName} ${item.supplier} ${item.category}`
           .toLowerCase()
-          .includes(search.toLowerCase())
+          .includes(search.toLowerCase())    
   );
+
+const stockTotalPages = Math.max(
+  1,
+  Math.ceil(filteredStock.length / STOCK_PER_PAGE)
+);
+
+const paginatedStock = filteredStock.slice(
+  (stockPage - 1) * STOCK_PER_PAGE,
+  stockPage * STOCK_PER_PAGE
+);
 
   // -----------------------------
   // STATUS
@@ -271,16 +334,23 @@ export default function Stock() {
         <h2>Add Stock</h2>
 
         <div className="customer-form">
-          <input
-            placeholder="Supplier"
-            value={form.supplier}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                supplier: e.target.value,
-              })
-            }
-          />
+          <select
+  value={form.supplier}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      supplier: e.target.value,
+    })
+  }
+>
+  <option value="">Select Supplier</option>
+
+  {suppliers.map((supplier) => (
+    <option key={supplier.id} value={supplier.name}>
+      {supplier.name}
+    </option>
+  ))}
+</select>
 
           <select
   value={form.category}
@@ -303,12 +373,78 @@ export default function Stock() {
 </select>
 
           <input
+          
             placeholder="Item Name"
             value={form.itemName}
             onChange={(e) =>
               setForm({
                 ...form,
                 itemName: e.target.value,
+              })
+            }
+          />
+          <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    minHeight: "52px",
+    padding: "0 16px",
+    border: "1px solid #ead8b8",
+    borderRadius: "12px",
+    background: "#fafafa",
+    color: "#666",
+  }}
+>
+  Barcode will be generated automatically
+</div>
+
+          <input
+            placeholder="HSN Code (optional)"
+            value={form.hsnCode}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                hsnCode: e.target.value,
+              })
+            }
+          />
+
+          <input
+            type="number"
+            min="0"
+            max="100"
+            placeholder="GST Rate %"
+            value={form.gstRate}
+            onChange={(e) =>
+              setForm({
+              ...form,
+              gstRate: e.target.value,
+              })
+            }
+          />
+
+          <select
+          value={form.gstInclusive ? "inclusive" : "exclusive"}
+          onChange={(e) =>
+            setForm({
+            ...form,
+            gstInclusive: e.target.value === "inclusive",
+            })
+          }
+          >
+        <option value="inclusive">GST Inclusive</option>
+        <option value="exclusive">GST Exclusive</option>
+        </select>
+
+          <input
+            type="number"
+            min="0"
+            placeholder="MRP"
+            value={form.mrp}
+            onChange={(e) =>
+              setForm({
+              ...form,
+              mrp: e.target.value,
               })
             }
           />
@@ -379,7 +515,10 @@ export default function Stock() {
           <input
             placeholder="Search stock..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+  setSearch(e.target.value);
+  setStockPage(1);
+}}
             style={{ width: "240px" }}
           />
         </div>
@@ -388,6 +527,7 @@ export default function Stock() {
           <thead>
             <tr>
               <th>Stock No</th>
+              <th>Barcode</th>
               <th>Item</th>
               <th>Category</th>
               <th>Total Qty</th>
@@ -401,22 +541,26 @@ export default function Stock() {
             {filteredStock.length === 0 ? (
               <tr>
                 <td
-                  colSpan="7"
+                  colSpan="8"
                   style={{ textAlign: "center" }}
                 >
                   No stock found.
                 </td>
               </tr>
             ) : (
-              filteredStock.map((item) => (
+              paginatedStock.map((item) => (
                 <tr key={item.id}>
-  <td>
-    <strong>{item.stockNo || "-"}</strong>
-  </td>
+                <td>
+                  <strong>{item.stockNo || "-"}</strong>
+                </td>
 
-  <td>
-    <strong>{item.itemName}</strong>
-  </td>
+                <td>
+                  <strong>{item.barcode || "-"}</strong>
+                </td>
+
+                <td>
+                  <strong>{item.itemName}</strong>
+                </td>
 
                   <td>{item.category}</td>
 
@@ -474,6 +618,31 @@ export default function Stock() {
                       >
                         Adjust Stock
                       </button>
+                      <button
+  className="action-btn edit"
+  onClick={() => {
+    const copies = Number(
+      prompt(
+        `How many labels do you want to print?\nAvailable quantity: ${item.currentQty}`,
+        item.currentQty
+      )
+    );
+
+    if (
+      Number.isInteger(copies) &&
+      copies > 0 &&
+      copies <= item.currentQty
+    ) {
+      printStockLabel(item, copies);
+    } else if (copies > item.currentQty) {
+      alert(
+        `You only have ${item.currentQty} pieces available.`
+      );
+    }
+  }}
+>
+  Print Label
+</button>
                     </div>
                   </td>
                 </tr>
@@ -481,6 +650,54 @@ export default function Stock() {
             )}
           </tbody>
         </table>
+        <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
+    marginTop: "20px",
+  }}
+>
+  <button
+    className="small-btn"
+    disabled={stockPage === 1}
+    onClick={() =>
+      setStockPage((page) => Math.max(1, page - 1))
+    }
+  >
+    Previous
+  </button>
+
+  {Array.from(
+    { length: stockTotalPages },
+    (_, index) => index + 1
+  ).map((page) => (
+    <button
+      key={page}
+      className="small-btn"
+      onClick={() => setStockPage(page)}
+      style={{
+        fontWeight: stockPage === page ? "700" : "400",
+      }}
+    >
+      {page}
+    </button>
+  ))}
+
+  <button
+    className="small-btn"
+    disabled={stockPage === stockTotalPages}
+    onClick={() =>
+      setStockPage((page) =>
+        Math.min(stockTotalPages, page + 1)
+      )
+    }
+  >
+    Next
+  </button>
+</div>
       </div>
 
       {/* =========================
@@ -526,19 +743,19 @@ export default function Stock() {
               </div>
 
               <div className="invoice-row">
-  <span>Available Quantity</span>
-  <strong>{viewItem.currentQty}</strong>
-</div>
+                <span>Available Quantity</span>
+                <strong>{viewItem.currentQty}</strong>
+              </div>
 
-<div className="invoice-row">
-  <span>Returned to Supplier</span>
-  <strong>{viewItem.returnedQty || 0}</strong>
-</div>
+              <div className="invoice-row">
+                <span>Returned to Supplier</span>
+                <strong>{viewItem.returnedQty || 0}</strong>
+              </div>
 
-<div className="invoice-row">
-  <span>Status</span>
-  <strong>{getStatus(viewItem)}</strong>
-</div>
+              <div className="invoice-row">
+                <span>Status</span>
+                <strong>{getStatus(viewItem)}</strong>
+              </div>
 
              
 
