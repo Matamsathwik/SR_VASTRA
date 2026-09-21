@@ -353,6 +353,7 @@ export default function Returns() {
           fps: 10,
           qrbox: { width: 300, height: 120 },
         },
+        
         async (decodedText) => {
           console.log("RETURN BARCODE:", decodedText);
           await stopBarcodeScanner();
@@ -932,20 +933,127 @@ export default function Returns() {
       )}
 
       {showScanner && (
-        <div className="scanner-overlay">
-          <div className="scanner-modal">
-            <h3>Scan Return Barcode</h3>
-            <div id="return-barcode-reader"></div>
-            <button
-              type="button"
-              className="save-btn"
-              onClick={stopBarcodeScanner}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+  <>
+    <style>{`
+      #return-barcode-reader {
+        width: 360px !important;
+        height: 220px !important;
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        position: relative !important;
+        background: #000 !important;
+        border-radius: 10px !important;
+      }
+
+      #return-barcode-reader > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #return-barcode-reader__scan_region {
+        width: 360px !important;
+        height: 220px !important;
+        max-width: 100% !important;
+        position: relative !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #return-barcode-reader__scan_region video {
+        width: 360px !important;
+        height: 220px !important;
+        max-width: 100% !important;
+        max-height: 220px !important;
+        object-fit: cover !important;
+        display: block !important;
+        margin: 0 !important;
+      }
+
+      #return-barcode-reader__dashboard_section,
+      #return-barcode-reader__dashboard_section_csr {
+        display: none !important;
+      }
+    `}</style>
+
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 99999,
+        background: "rgba(0, 0, 0, 0.72)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px",
+        boxSizing: "border-box",
+      }}
+    >
+      <div
+        style={{
+          width: "420px",
+          maxWidth: "95vw",
+          background: "#fff",
+          borderRadius: "16px",
+          padding: "20px",
+          boxSizing: "border-box",
+          textAlign: "center",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 16px",
+            fontSize: "21px",
+            fontWeight: "700",
+            color: "#111827",
+          }}
+        >
+          Scan Return Barcode
+        </h3>
+
+        <div
+          id="return-barcode-reader"
+          style={{
+            width: "360px",
+            height: "220px",
+            maxWidth: "100%",
+            margin: "0 auto",
+            overflow: "hidden",
+            borderRadius: "10px",
+            background: "#000",
+          }}
+        />
+
+        
+
+        <button
+          type="button"
+          onClick={stopBarcodeScanner}
+          style={{
+            display: "block",
+            width: "150px",
+            margin: "15px auto 0",
+            padding: "11px 20px",
+            border: "none",
+            borderRadius: "8px",
+            background: "#e22f2f",
+            color: "#fff",
+            fontSize: "15px",
+            fontWeight: "700",
+            cursor: "pointer",
+          }}
+        >
+          ✕ Cancel
+        </button>
+      </div>
+    </div>
+  </>
+)}
 
       {/* SEARCH */}
       <div
