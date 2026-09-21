@@ -22,25 +22,26 @@ export default function Sidebar({
   setUser,
 }) {
   const menus = [
-  { name: "Dashboard", icon: LayoutDashboard },
-  { name: "Customers", icon: Users },
-  { name: "Billing", icon: Receipt },
-  { name: "Bills", icon: FileText },
-  { name: "Returns", icon: RotateCcw },
-  { name: "Stock", icon: Package },
-  { name: "Purchases", icon: ShoppingCart },
-  // Owner-only menus
-...(user?.role?.toLowerCase() === "owner"
-  ? [
-      { name: "Reports", icon: BarChart3 },
-      { name: "Staff", icon: UserCog },
-      { name: "Activity", icon: History },
-    ]
-  : []),
+    { name: "Dashboard", icon: LayoutDashboard },
+    { name: "Customers", icon: Users },
+    { name: "Billing", icon: Receipt },
+    { name: "Bills", icon: FileText },
+    { name: "Returns", icon: RotateCcw },
 
-  // Everyone gets Settings
-  { name: "Settings", icon: Settings },
-];
+    // Owner-only menus
+    ...(user?.role?.toLowerCase() === "owner"
+      ? [
+          { name: "Stock", icon: Package },
+          { name: "Purchases", icon: ShoppingCart },
+          { name: "Reports", icon: BarChart3 },
+          { name: "Staff", icon: UserCog },
+          { name: "Activity", icon: History },
+        ]
+      : []),
+
+    // Everyone gets Settings
+    { name: "Settings", icon: Settings },
+  ];
 
   return (
     <aside className="sidebar">

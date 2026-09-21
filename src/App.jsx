@@ -16,26 +16,119 @@ import Purchases from "./pages/Purchases";
 
 import { authService } from "./services/authService";
 
+const pageRoutes = {
+  "/": "Dashboard",
+  "/dashboard": "Dashboard",
+  "/customers": "Customers",
+  "/billing": "Billing",
+  "/bills": "Bills",
+  "/returns": "Returns",
+  "/stock": "Stock",
+  "/purchases": "Purchases",
+  "/reports": "Reports",
+  "/activity": "Activity",
+  "/staff": "Staff",
+  "/settings": "Settings",
+};
+
+const pagePaths = {
+  Dashboard: "/dashboard",
+  Customers: "/customers",
+  Billing: "/billing",
+  Bills: "/bills",
+  Returns: "/returns",
+  Stock: "/stock",
+  Purchases: "/purchases",
+  Reports: "/reports",
+  Activity: "/activity",
+  Staff: "/staff",
+  Settings: "/settings",
+};
+
+const staffRestrictedPages = [
+  "Stock",
+  "Purchases",
+  "Reports",
+  "Activity",
+  "Staff",
+];
+
 export default function App() {
-  const [page, setPage] = useState("Dashboard");
+  const [page, setPage] = useState(() => {
+    return pageRoutes[window.location.pathname] || "Dashboard";
+  });
+
   const [user, setUser] = useState(null);
 
   useEffect(() => {
     authService.currentUser().then(setUser);
+
+    const handlePopState = () => {
+      const requestedPage =
+        pageRoutes[window.location.pathname] || "Dashboard";
+
+      setPage(requestedPage);
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, []);
+
+  const isOwner =
+    user?.role?.toLowerCase() === "owner";
+
+  const navigate = (nextPage) => {
+    const path = pagePaths[nextPage] || "/dashboard";
+
+    // Staff cannot access restricted pages
+    if (
+      user?.role?.toLowerCase() !== "owner" &&
+      staffRestrictedPages.includes(nextPage)
+    ) {
+      setPage("Dashboard");
+
+      if (window.location.pathname !== "/dashboard") {
+        window.history.pushState({}, "", "/dashboard");
+      }
+
+      return;
+    }
+
+    setPage(nextPage);
+
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+  };
+
+  // If staff directly opens a restricted URL
+  useEffect(() => {
+    if (!user) return;
+
+    const currentPage =
+      pageRoutes[window.location.pathname];
+
+    if (
+      user?.role?.toLowerCase() !== "owner" &&
+      staffRestrictedPages.includes(currentPage)
+    ) {
+      setPage("Dashboard");
+      window.history.replaceState({}, "", "/dashboard");
+    }
+  }, [user]);
 
   if (!user) {
     return <Login onLogin={setUser} />;
   }
 
-  const isOwner =
-    user?.role?.toLowerCase() === "owner";
-
   return (
     <div className="app">
       <Sidebar
         page={page}
-        setPage={setPage}
+        setPage={navigate}
         user={user}
         setUser={setUser}
       />
@@ -54,9 +147,11 @@ export default function App() {
 
       {page === "Returns" && <Returns />}
 
-      {page === "Stock" && <Stock />}
+      {page === "Stock" && isOwner && <Stock />}
 
-      {page === "Purchases" && <Purchases />}
+      {page === "Purchases" && isOwner && (
+        <Purchases />
+      )}
 
       {page === "Reports" && isOwner && (
         <Reports />
