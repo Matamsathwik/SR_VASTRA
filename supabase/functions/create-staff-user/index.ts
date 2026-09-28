@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isPasswordCompromised, validatePasswordLength } from "../_shared/passwordSecurity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -137,12 +138,14 @@ Deno.serve(async (req) => {
       throw new Error("Email is required.");
     }
 
-    if (
-      typeof password !== "string" ||
-      password.length < 6
-    ) {
+    validatePasswordLength(password);
+
+    const passwordCompromised =
+      await isPasswordCompromised(password);
+
+    if (passwordCompromised) {
       throw new Error(
-        "Password must be at least 6 characters."
+        "This password has appeared in known data breaches. Please choose a different password."
       );
     }
 
