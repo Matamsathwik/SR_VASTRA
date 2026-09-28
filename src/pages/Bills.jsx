@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { billService } from "../services/billService";
-import BillDetails from "./BillDetails";
+
 import { supabase } from "../lib/supabase";
 import { customerService } from "../services/customerService";
 
-export default function Bills() {
+export default function Bills({ onOpenBill }) {
   const [bills, setBills] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [selectedBill, setSelectedBill] = useState(null);
+  
 
   const today = new Date().toISOString().split("T")[0];
   const [selectedDate, setSelectedDate] = useState(today);
@@ -145,19 +145,7 @@ export default function Bills() {
   // --------------------------------------------------
   // Bill Details
   // --------------------------------------------------
-  if (selectedBill) {
-    return (
-      <BillDetails
-        bill={selectedBill}
-        customer={customers.find(
-          (c) =>
-            Number(c.id) ===
-            Number(selectedBill.customerId)
-        )}
-        goBack={() => setSelectedBill(null)}
-      />
-    );
-  }
+  
 
   return (
     <main className="content">
@@ -233,13 +221,11 @@ export default function Bills() {
         {selectedDate !== today && (
           <button
             className="filter-chip"
-            onClick={() =>
-              setSelectedDate(today)
-            }
+            onClick={() => setSelectedDate(today)}
           >
             Today
           </button>
-        )}
+      )}
       </div>
 
       {/* Bills Table */}
@@ -281,9 +267,7 @@ export default function Bills() {
                 return (
                   <tr
                     key={`${bill.billDate}-${bill.billNo}-${bill.id}`}
-                    onClick={() =>
-                      setSelectedBill(bill)
-                    }
+                    onClick={() => onOpenBill(bill)}
                     style={{
                       cursor: "pointer",
                     }}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Plus,
   Search,
@@ -19,18 +19,16 @@ const money = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-  const categories = [
-    "Pattu",
-    "Cotton",
-    "Silk",
-    "Fancy",
-    "Kalamkari",
-    "Printed",
-    "Linen",
-    "Other",
-  ];
-
-
+const categories = [
+  "Pattu",
+  "Cotton",
+  "Silk",
+  "Fancy",
+  "Kalamkari",
+  "Printed",
+  "Linen",
+  "Other",
+];
 
 const emptyPurchase = {
   supplierId: "",
@@ -59,7 +57,14 @@ const emptySupplier = {
   openingDue: "",
 };
 
-export default function Purchases() {
+const emptyPayment = {
+  payment_mode: "Cash",
+  amount: "",
+  reference_no: "",
+  note: "",
+};
+
+export default function Purchases({ onOpenSupplier }) {
   const [mode, setMode] = useState("history");
 
   const [suppliers, setSuppliers] = useState([]);
@@ -79,16 +84,19 @@ export default function Purchases() {
   const [itemSearch, setItemSearch] = useState("");
   const [stockPage, setStockPage] = useState(1);
   const STOCK_PER_PAGE = 10;
-  const [supplierSearch, setSupplierSearch] = useState("");
-
   const [showSupplier, setShowSupplier] = useState(false);
+  const supplierPickerRef = useRef(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [showSupplierPicker, setShowSupplierPicker] = useState(false);
+
+  const [supplierPage, setSupplierPage] = useState(1);
+  const SUPPLIERS_PER_PAGE = 10;
+
   const [showExistingItems, setShowExistingItems] = useState(false);
 
-  const [supplierForm, setSupplierForm] =
-    useState(emptySupplier);
+  const [supplierForm, setSupplierForm] = useState(emptySupplier);
 
-  const [selectedPurchase, setSelectedPurchase] =
-    useState(null);
+  const [selectedPurchase, setSelectedPurchase] = useState(null);
 
   const [selectedItems, setSelectedItems] = useState([]);
 
@@ -98,35 +106,49 @@ export default function Purchases() {
   const [returnSaving, setReturnSaving] = useState(false);
 
   const load = async () => {
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const [
-      supplierData,
-      stockData,
-      purchaseData,
-      supplierReturnData,
-    ] = await Promise.all([
-      supplierService.getAll(),
-      stockService.getAll(),
-      purchaseService.getAll(),
-      purchaseService.getSupplierReturns(),
-    ]);
+    try {
+      const [supplierData, stockData, purchaseData, supplierReturnData] =
+        await Promise.all([
+          supplierService.getAll(),
+          stockService.getAll(),
+          purchaseService.getAll(),
+          purchaseService.getSupplierReturns(),
+        ]);
 
-    setSuppliers(supplierData || []);
-    setStock(stockData || []);
-    setPurchases(purchaseData || []);
-    setSupplierReturns(supplierReturnData || []);
-  } catch (error) {
-    console.error(error);
-    alert(error.message || "Failed to load purchase data.");
-  } finally {
-    setLoading(false);
-  }
-};
+      setSuppliers(supplierData || []);
+      setStock(stockData || []);
+      setPurchases(purchaseData || []);
+      setSupplierReturns(supplierReturnData || []);
+    } catch (error) {
+      console.error(error);
+      alert(error.message || "Failed to load purchase data.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (
+        supplierPickerRef.current &&
+        !supplierPickerRef.current.contains(event.target)
+      ) {
+        setShowSupplierPicker(false);
+        setSupplierSearch("");
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
   }, []);
 
   const startNewPurchase = () => {
@@ -137,7 +159,7 @@ export default function Purchases() {
       barcode: generateBarcode(),
     });
     setItems([]);
-    setPayments([]);
+    setPayments([{ ...emptyPayment }]);
     setItemSearch("");
     setSupplierSearch("");
     setSelectedPurchase(null);
@@ -212,7 +234,7 @@ export default function Purchases() {
         itemName: name,
         stockNo: "Generated on save",
         category: itemForm.category.trim(),
-        barcode: itemForm.barcode || makeBarcode(),
+        barcode: itemForm.barcode || generateBarcode(),
         hsnCode: itemForm.hsnCode.trim(),
         qty,
         purchasePrice: cp,
@@ -225,7 +247,7 @@ export default function Purchases() {
 
     setItemForm({
       ...emptyItem,
-      barcode: makeBarcode(),
+      barcode: generateBarcode(),
     });
 
     setItemSearch("");
@@ -233,7 +255,7 @@ export default function Purchases() {
 
   const addExistingStockItem = (stockItem) => {
     const existingIndex = items.findIndex(
-      (item) => item.stockId === stockItem.id
+      (item) => item.stockId === stockItem.id,
     );
 
     if (existingIndex >= 0) {
@@ -244,8 +266,8 @@ export default function Purchases() {
                 ...item,
                 qty: Number(item.qty || 0) + 1,
               }
-            : item
-        )
+            : item,
+        ),
       );
     } else {
       setItems((current) => [
@@ -258,16 +280,11 @@ export default function Purchases() {
           barcode: stockItem.barcode || "",
           hsnCode: stockItem.hsnCode || "",
           qty: 1,
-          purchasePrice: Number(
-            stockItem.purchasePrice || 0
-          ),
-          sellingPrice: Number(
-            stockItem.sellingPrice || 0
-          ),
+          purchasePrice: Number(stockItem.purchasePrice || 0),
+          sellingPrice: Number(stockItem.sellingPrice || 0),
           mrp: Number(stockItem.mrp || 0),
           gstRate: Number(stockItem.gstRate || 0),
-          gstInclusive:
-            stockItem.gstInclusive !== false,
+          gstInclusive: stockItem.gstInclusive !== false,
         },
       ]);
     }
@@ -279,16 +296,14 @@ export default function Purchases() {
   const updatePurchaseItem = (index, field, value) => {
     setItems((current) =>
       current.map((item, itemIndex) =>
-        itemIndex === index
-          ? { ...item, [field]: value }
-          : item
-      )
+        itemIndex === index ? { ...item, [field]: value } : item,
+      ),
     );
   };
 
   const removePurchaseItem = (index) => {
     setItems((current) =>
-      current.filter((_, itemIndex) => itemIndex !== index)
+      current.filter((_, itemIndex) => itemIndex !== index),
     );
   };
 
@@ -296,67 +311,34 @@ export default function Purchases() {
     () =>
       items.reduce(
         (sum, item) =>
-          sum +
-          Number(item.qty || 0) *
-            Number(item.purchasePrice || 0),
-        0
+          sum + Number(item.qty || 0) * Number(item.purchasePrice || 0),
+        0,
       ),
-    [items]
+    [items],
   );
 
-  const discount = Math.max(
-    0,
-    Number(form.discount || 0)
-  );
+  const discount = Math.max(0, Number(form.discount || 0));
 
-  const total = Math.max(
-    0,
-    subtotal - discount
-  );
+  const total = Math.max(0, subtotal - discount);
 
   const paid = payments.reduce(
-    (sum, payment) =>
-      sum + Number(payment.amount || 0),
-    0
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0,
   );
 
   const due = Math.max(0, total - paid);
 
-  const addPayment = () => {
-    if (!total) {
-      alert("Add an item first.");
-      return;
-    }
-
-    if (paid >= total) {
-      alert("The purchase is already fully paid.");
-      return;
-    }
-
-    setPayments((current) => [
-      ...current,
-      {
-        payment_mode: "Cash",
-        amount: "",
-        reference_no: "",
-        note: "",
-      },
-    ]);
-  };
-
   const updatePayment = (index, field, value) => {
     setPayments((current) =>
       current.map((payment, paymentIndex) =>
-        paymentIndex === index
-          ? { ...payment, [field]: value }
-          : payment
-      )
+        paymentIndex === index ? { ...payment, [field]: value } : payment,
+      ),
     );
   };
 
   const removePayment = (index) => {
     setPayments((current) =>
-      current.filter((_, paymentIndex) => paymentIndex !== index)
+      current.filter((_, paymentIndex) => paymentIndex !== index),
     );
   };
 
@@ -395,36 +377,24 @@ export default function Purchases() {
           qty: Number(item.qty),
           purchase_price: Number(item.purchasePrice),
           selling_price:
-            item.sellingPrice === ""
-              ? null
-              : Number(item.sellingPrice),
-          mrp:
-            item.mrp === ""
-              ? null
-              : Number(item.mrp),
+            item.sellingPrice === "" ? null : Number(item.sellingPrice),
+          mrp: item.mrp === "" ? null : Number(item.mrp),
           gst_rate: Number(item.gstRate || 0),
-          gst_inclusive:
-            item.gstInclusive !== false,
+          gst_inclusive: item.gstInclusive !== false,
         })),
         payments: payments
-          .filter(
-            (payment) =>
-              Number(payment.amount || 0) > 0
-          )
+          .filter((payment) => Number(payment.amount || 0) > 0)
           .map((payment) => ({
             payment_mode: payment.payment_mode,
             amount: Number(payment.amount),
-            reference_no:
-              payment.reference_no || null,
+            reference_no: payment.reference_no || null,
             note: payment.note || null,
           })),
         discount,
         notes: form.note || null,
       });
 
-      alert(
-        "Purchase saved successfully."
-      );
+      alert("Purchase saved successfully.");
 
       await load();
 
@@ -435,10 +405,7 @@ export default function Purchases() {
       setPayments([]);
     } catch (error) {
       console.error(error);
-      alert(
-        error.message ||
-          "Purchase could not be saved."
-      );
+      alert(error.message || "Purchase could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -453,15 +420,10 @@ export default function Purchases() {
     try {
       setSaving(true);
 
-      const created =
-        await supplierService.create(
-          supplierForm
-        );
+      const created = await supplierService.create(supplierForm);
 
       setSuppliers((current) =>
-        [...current, created].sort((a, b) =>
-          a.name.localeCompare(b.name)
-        )
+        [...current, created].sort((a, b) => a.name.localeCompare(b.name)),
       );
 
       setForm((current) => ({
@@ -473,10 +435,7 @@ export default function Purchases() {
       setShowSupplier(false);
     } catch (error) {
       console.error(error);
-      alert(
-        error.message ||
-          "Supplier could not be created."
-      );
+      alert(error.message || "Supplier could not be created.");
     } finally {
       setSaving(false);
     }
@@ -484,25 +443,17 @@ export default function Purchases() {
 
   const openDetails = async (purchase) => {
     try {
-      const data =
-        await purchaseService.getById(
-          purchase.id
-        );
+      const data = await purchaseService.getById(purchase.id);
 
       setSelectedPurchase(data);
-      setSelectedItems(
-        data.purchase_items || []
-      );
+      setSelectedItems(data.purchase_items || []);
     } catch (error) {
       console.error(error);
-      alert(
-        error.message ||
-          "Could not open purchase."
-      );
+      alert(error.message || "Could not open purchase.");
     }
   };
 
-    const openSupplierReturn = () => {
+  const openSupplierReturn = () => {
     if (!selectedPurchase || !selectedItems.length) {
       alert("No purchase items available.");
       return;
@@ -517,7 +468,7 @@ export default function Purchases() {
         purchase_price: Number(item.purchase_price || 0),
         purchased_qty: Number(item.qty || 0),
         qty: 0,
-      }))
+      })),
     );
 
     setReturnReason("");
@@ -534,8 +485,8 @@ export default function Purchases() {
               ...item,
               qty: Number.isInteger(qty) && qty >= 0 ? qty : 0,
             }
-          : item
-      )
+          : item,
+      ),
     );
   };
 
@@ -546,7 +497,7 @@ export default function Purchases() {
     }
 
     const selectedReturnItems = returnItems.filter(
-      (item) => Number(item.qty) > 0
+      (item) => Number(item.qty) > 0,
     );
 
     if (!selectedReturnItems.length) {
@@ -557,7 +508,7 @@ export default function Purchases() {
     for (const item of selectedReturnItems) {
       if (Number(item.qty) > Number(item.purchased_qty)) {
         alert(
-          `Return quantity for ${item.item_name} cannot exceed purchased quantity.`
+          `Return quantity for ${item.item_name} cannot exceed purchased quantity.`,
         );
         return;
       }
@@ -588,55 +539,57 @@ export default function Purchases() {
     } catch (error) {
       console.error(error);
 
-      alert(
-        error.message ||
-          "Supplier return could not be saved."
-      );
+      alert(error.message || "Supplier return could not be saved.");
     } finally {
       setReturnSaving(false);
     }
   };
 
   const filteredStock = stock.filter((item) =>
-    `${item.itemName || ""} ${
-      item.stockNo || ""
-    } ${item.barcode || ""} ${
+    `${item.itemName || ""} ${item.stockNo || ""} ${item.barcode || ""} ${
       item.category || ""
     }`
       .toLowerCase()
-      .includes(itemSearch.toLowerCase())
-  );const stockTotalPages = Math.max(
-  1,
-  Math.ceil(filteredStock.length / STOCK_PER_PAGE)
-);
+      .includes(itemSearch.toLowerCase()),
+  );
+  const stockTotalPages = Math.max(
+    1,
+    Math.ceil(filteredStock.length / STOCK_PER_PAGE),
+  );
 
-const paginatedStock = filteredStock.slice(
-  (stockPage - 1) * STOCK_PER_PAGE,
-  stockPage * STOCK_PER_PAGE
-);
+  const paginatedStock = filteredStock.slice(
+    (stockPage - 1) * STOCK_PER_PAGE,
+    stockPage * STOCK_PER_PAGE,
+  );
 
-  const filteredSuppliers = suppliers.filter(
-    (supplier) =>
-      `${supplier.name || ""} ${
-        supplier.phone || ""
-      }`
-        .toLowerCase()
-        .includes(
-          supplierSearch.toLowerCase()
-        )
+  const filteredSuppliers = suppliers.filter((supplier) =>
+    `${supplier.name || ""} ${supplier.phone || ""}`
+      .toLowerCase()
+      .includes(supplierSearch.toLowerCase()),
+  );
+
+  const supplierTotalPages = Math.max(
+    1,
+    Math.ceil(suppliers.length / SUPPLIERS_PER_PAGE),
+  );
+
+  const paginatedSuppliers = suppliers.slice(
+    (supplierPage - 1) * SUPPLIERS_PER_PAGE,
+    supplierPage * SUPPLIERS_PER_PAGE,
+  );
+
+  const selectedSupplier = suppliers.find(
+    (supplier) => String(supplier.id) === String(form.supplierId),
   );
 
   return (
     <main className="content purchase-page">
-
       {/* PAGE HEADER */}
 
       <div className="purchase-header">
         <div>
           <h1>Purchases</h1>
-          <p className="muted">
-            Record stock bought from suppliers.
-          </p>
+          <p className="muted">Record stock bought from suppliers.</p>
         </div>
 
         <div className="purchase-header-actions">
@@ -650,11 +603,7 @@ const paginatedStock = filteredStock.slice(
             </button>
           )}
 
-          <button
-            type="button"
-            className="save-btn"
-            onClick={startNewPurchase}
-          >
+          <button type="button" className="save-btn" onClick={startNewPurchase}>
             <Plus size={18} />
             New Purchase
           </button>
@@ -667,109 +616,123 @@ const paginatedStock = filteredStock.slice(
 
       {mode === "entry" && (
         <div className="purchase-entry">
-
           {/* SUPPLIER */}
 
           <section className="customer-card purchase-section">
             <div className="purchase-section-head">
               <div>
-                <span className="purchase-step">
-                  STEP 1
-                </span>
                 <h2>Supplier</h2>
+                <p className="muted">Select the supplier for this purchase.</p>
               </div>
 
               <button
                 type="button"
                 className="small-btn"
-                onClick={() =>
-                  setShowSupplier(true)
-                }
+                onClick={() => setShowSupplier(true)}
               >
                 <Plus size={16} />
                 Add Supplier
               </button>
             </div>
 
-            <div className="purchase-supplier-row">
-              <div className="purchase-main-field">
-                <label>Select Supplier *</label>
+            <div className="supplier-picker">
+              <label>Select Supplier *</label>
 
-                <select
-                  value={form.supplierId}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      supplierId:
-                        e.target.value,
-                    })
+              <div className="supplier-combobox" ref={supplierPickerRef}>
+                <Search size={18} />
+
+                <input
+                  value={
+                    showSupplierPicker
+                      ? supplierSearch
+                      : selectedSupplier?.name || ""
                   }
-                >
-                  <option value="">
-                    Select supplier
-                  </option>
+                  onFocus={() => {
+                    setShowSupplierPicker(true);
+                    setSupplierSearch("");
+                  }}
+                  onChange={(e) => {
+                    setSupplierSearch(e.target.value);
+                    setShowSupplierPicker(true);
+                  }}
+                  placeholder="Search supplier by name or phone..."
+                  autoComplete="off"
+                />
 
-                  {suppliers.map((supplier) => (
-                    <option
-                      key={supplier.id}
-                      value={supplier.id}
-                    >
-                      {supplier.name}
-                      {supplier.phone
-                        ? ` — ${supplier.phone}`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {selectedSupplier && !supplierSearch && (
+                  <button
+                    type="button"
+                    className="supplier-clear"
+                    onClick={() => {
+                      setForm((current) => ({
+                        ...current,
+                        supplierId: "",
+                      }));
+                      setSupplierSearch("");
+                      setShowSupplierPicker(false);
+                    }}
+                  >
+                    <X size={17} />
+                  </button>
+                )}
 
-              <div className="purchase-main-field">
-                <label>Search Supplier</label>
-
-                <div className="search-wrap">
-                  <Search size={18} />
-                  <input
-                    value={supplierSearch}
-                    onChange={(e) =>
-                      setSupplierSearch(
-                        e.target.value
+                {showSupplierPicker && (
+                  <div className="supplier-dropdown">
+                    {suppliers
+                      .filter((supplier) =>
+                        `${supplier.name || ""} ${supplier.phone || ""}`
+                          .toLowerCase()
+                          .includes(supplierSearch.toLowerCase()),
                       )
-                    }
-                    placeholder="Name or phone"
-                  />
-                </div>
-
-                {supplierSearch && (
-                  <div className="suggestions">
-                    {filteredSuppliers
-                      .slice(0, 6)
+                      .slice(0, 10)
                       .map((supplier) => (
                         <button
                           type="button"
+                          className="supplier-option"
                           key={supplier.id}
                           onClick={() => {
-                            setForm({
-                              ...form,
-                              supplierId:
-                                String(
-                                  supplier.id
-                                ),
-                            });
+                            setForm((current) => ({
+                              ...current,
+                              supplierId: String(supplier.id),
+                            }));
+
                             setSupplierSearch("");
+
+                            setShowSupplierPicker(false);
                           }}
                         >
-                          <strong>
-                            {supplier.name}
-                          </strong>
-                          <span>
-                            {supplier.phone ||
-                              ""}
-                          </span>
+                          <strong>{supplier.name}</strong>
+
+                          {supplier.phone && <span>{supplier.phone}</span>}
                         </button>
                       ))}
+
+                    {suppliers.filter((supplier) =>
+                      `${supplier.name || ""} ${supplier.phone || ""}`
+                        .toLowerCase()
+                        .includes(supplierSearch.toLowerCase()),
+                    ).length === 0 && (
+                      <div className="supplier-no-results">
+                        No supplier found.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
+              {selectedSupplier && (
+                <div className="selected-supplier-info">
+                  <strong>{selectedSupplier.name}</strong>
+
+                  {selectedSupplier.phone && (
+                    <span>{selectedSupplier.phone}</span>
+                  )}
+
+                  {selectedSupplier.address && (
+                    <span>{selectedSupplier.address}</span>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -778,24 +741,17 @@ const paginatedStock = filteredStock.slice(
           <section className="customer-card purchase-section">
             <div className="purchase-section-head">
               <div>
-                <span className="purchase-step">
-                  STEP 2
-                </span>
                 <h2>Add Items</h2>
                 <p className="muted">
-                  Enter what you bought. Barcode and
-                  stock number are generated by SR Vastra.
+                  Enter what you bought. Barcode and stock number are generated
+                  by SR Vastra.
                 </p>
               </div>
 
               <button
                 type="button"
                 className="small-btn"
-                onClick={() =>
-                  setShowExistingItems(
-                    (current) => !current
-                  )
-                }
+                onClick={() => setShowExistingItems((current) => !current)}
               >
                 <Search size={16} />
                 Existing Item
@@ -803,17 +759,11 @@ const paginatedStock = filteredStock.slice(
             </div>
 
             <div className="purchase-item-entry">
-
               <div className="purchase-field item-name-field">
                 <label>Item Name *</label>
                 <input
                   value={itemForm.itemName}
-                  onChange={(e) =>
-                    updateItemForm(
-                      "itemName",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => updateItemForm("itemName", e.target.value)}
                   placeholder="Example: Silk Saree"
                   autoComplete="off"
                 />
@@ -826,12 +776,7 @@ const paginatedStock = filteredStock.slice(
                   min="1"
                   step="1"
                   value={itemForm.qty}
-                  onChange={(e) =>
-                    updateItemForm(
-                      "qty",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => updateItemForm("qty", e.target.value)}
                 />
               </div>
 
@@ -841,14 +786,9 @@ const paginatedStock = filteredStock.slice(
                   type="number"
                   min="0"
                   step="0.01"
-                  value={
-                    itemForm.purchasePrice
-                  }
+                  value={itemForm.purchasePrice}
                   onChange={(e) =>
-                    updateItemForm(
-                      "purchasePrice",
-                      e.target.value
-                    )
+                    updateItemForm("purchasePrice", e.target.value)
                   }
                   placeholder="What we paid"
                 />
@@ -860,14 +800,9 @@ const paginatedStock = filteredStock.slice(
                   type="number"
                   min="0"
                   step="0.01"
-                  value={
-                    itemForm.sellingPrice
-                  }
+                  value={itemForm.sellingPrice}
                   onChange={(e) =>
-                    updateItemForm(
-                      "sellingPrice",
-                      e.target.value
-                    )
+                    updateItemForm("sellingPrice", e.target.value)
                   }
                   placeholder="What we sell for"
                 />
@@ -880,36 +815,26 @@ const paginatedStock = filteredStock.slice(
                   min="0"
                   step="0.01"
                   value={itemForm.mrp}
-                  onChange={(e) =>
-                    updateItemForm(
-                      "mrp",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => updateItemForm("mrp", e.target.value)}
                   placeholder="Brand MRP"
                 />
               </div>
 
               <div className="purchase-field">
-  <label>Category</label>
-  <select
-    value={itemForm.category}
-    onChange={(e) =>
-      updateItemForm(
-        "category",
-        e.target.value
-      )
-    }
-  >
-    <option value="">Select Category</option>
+                <label>Category</label>
+                <select
+                  value={itemForm.category}
+                  onChange={(e) => updateItemForm("category", e.target.value)}
+                >
+                  <option value="">Select Category</option>
 
-    {categories.map((category) => (
-      <option key={category} value={category}>
-        {category}
-      </option>
-    ))}
-  </select>
-</div>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div className="purchase-field">
                 <label>GST %</label>
@@ -919,12 +844,7 @@ const paginatedStock = filteredStock.slice(
                   max="100"
                   step="0.01"
                   value={itemForm.gstRate}
-                  onChange={(e) =>
-                    updateItemForm(
-                      "gstRate",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => updateItemForm("gstRate", e.target.value)}
                 />
               </div>
 
@@ -932,24 +852,15 @@ const paginatedStock = filteredStock.slice(
                 <label>HSN Code</label>
                 <input
                   value={itemForm.hsnCode}
-                  onChange={(e) =>
-                    updateItemForm(
-                      "hsnCode",
-                      e.target.value
-                    )
-                  }
+                  onChange={(e) => updateItemForm("hsnCode", e.target.value)}
                   placeholder="Optional"
                 />
               </div>
 
               <div className="purchase-auto-barcode">
                 <span>Barcode</span>
-                <strong>
-                  {itemForm.barcode}
-                </strong>
-                <small>
-                  Automatically generated
-                </small>
+                <strong>{itemForm.barcode}</strong>
+                <small>Automatically generated</small>
               </div>
 
               <button
@@ -1010,19 +921,23 @@ const paginatedStock = filteredStock.slice(
                     type="button"
                     className="small-btn"
                     disabled={stockPage === 1}
-                    onClick={() => setStockPage((page) => Math.max(1, page - 1))}
+                    onClick={() =>
+                      setStockPage((page) => Math.max(1, page - 1))
+                    }
                   >
                     Previous
                   </button>
                   <div className="purchase-page-numbers">
                     {Array.from(
                       { length: stockTotalPages },
-                      (_, index) => index + 1
+                      (_, index) => index + 1,
                     ).map((page) => (
                       <button
                         type="button"
                         key={page}
-                        className={stockPage === page ? "page-btn active" : "page-btn"}
+                        className={
+                          stockPage === page ? "page-btn active" : "page-btn"
+                        }
                         onClick={() => setStockPage(page)}
                       >
                         {page}
@@ -1034,7 +949,9 @@ const paginatedStock = filteredStock.slice(
                     className="small-btn"
                     disabled={stockPage === stockTotalPages}
                     onClick={() =>
-                      setStockPage((page) => Math.min(stockTotalPages, page + 1))
+                      setStockPage((page) =>
+                        Math.min(stockTotalPages, page + 1),
+                      )
                     }
                   >
                     Next
@@ -1049,44 +966,18 @@ const paginatedStock = filteredStock.slice(
           <section className="customer-card purchase-section">
             <div className="purchase-section-head">
               <div>
-                <span className="purchase-step">
-                  STEP 3
-                </span>
                 <h2>
                   Purchase Items
-                  <span className="purchase-count">
-                    {items.length}
-                  </span>
+                  <span className="purchase-count">{items.length}</span>
                 </h2>
               </div>
-
-              <button
-                type="button"
-                className="small-btn"
-                onClick={() => {
-                  setItemForm({
-                    ...emptyItem,
-                    barcode: makeBarcode(),
-                  });
-                  window.scrollTo({
-                    top: 0,
-                    behavior: "smooth",
-                  });
-                }}
-              >
-                <Plus size={16} />
-                Another Item
-              </button>
             </div>
 
             {!items.length ? (
               <div className="purchase-empty">
                 <PackagePlus size={34} />
                 <strong>No items added yet</strong>
-                <span>
-                  Enter the item details above and
-                  press Add Item.
-                </span>
+                <span>Enter the item details above and press Add Item.</span>
               </div>
             ) : (
               <div className="purchase-item-list">
@@ -1097,9 +988,7 @@ const paginatedStock = filteredStock.slice(
                   >
                     <div className="purchase-line-head">
                       <div>
-                        <strong>
-                          {item.itemName}
-                        </strong>
+                        <strong>{item.itemName}</strong>
                         <span>
                           {item.stockId
                             ? `Stock ${item.stockNo}`
@@ -1110,11 +999,7 @@ const paginatedStock = filteredStock.slice(
                       <button
                         type="button"
                         className="icon-btn danger"
-                        onClick={() =>
-                          removePurchaseItem(
-                            index
-                          )
-                        }
+                        onClick={() => removePurchaseItem(index)}
                         aria-label="Remove item"
                       >
                         <Trash2 size={17} />
@@ -1130,11 +1015,7 @@ const paginatedStock = filteredStock.slice(
                           step="1"
                           value={item.qty}
                           onChange={(e) =>
-                            updatePurchaseItem(
-                              index,
-                              "qty",
-                              e.target.value
-                            )
+                            updatePurchaseItem(index, "qty", e.target.value)
                           }
                         />
                       </div>
@@ -1145,14 +1026,12 @@ const paginatedStock = filteredStock.slice(
                           type="number"
                           min="0"
                           step="0.01"
-                          value={
-                            item.purchasePrice
-                          }
+                          value={item.purchasePrice}
                           onChange={(e) =>
                             updatePurchaseItem(
                               index,
                               "purchasePrice",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                         />
@@ -1164,14 +1043,12 @@ const paginatedStock = filteredStock.slice(
                           type="number"
                           min="0"
                           step="0.01"
-                          value={
-                            item.sellingPrice
-                          }
+                          value={item.sellingPrice}
                           onChange={(e) =>
                             updatePurchaseItem(
                               index,
                               "sellingPrice",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                         />
@@ -1185,11 +1062,7 @@ const paginatedStock = filteredStock.slice(
                           step="0.01"
                           value={item.mrp}
                           onChange={(e) =>
-                            updatePurchaseItem(
-                              index,
-                              "mrp",
-                              e.target.value
-                            )
+                            updatePurchaseItem(index, "mrp", e.target.value)
                           }
                         />
                       </div>
@@ -1198,19 +1071,13 @@ const paginatedStock = filteredStock.slice(
                     <div className="purchase-line-bottom">
                       <span>
                         Barcode:{" "}
-                        <strong>
-                          {item.barcode ||
-                            "Generated on save"}
-                        </strong>
+                        <strong>{item.barcode || "Generated on save"}</strong>
                       </span>
 
                       <strong>
                         {money(
                           Number(item.qty || 0) *
-                            Number(
-                              item.purchasePrice ||
-                                0
-                            )
+                            Number(item.purchasePrice || 0),
                         )}
                       </strong>
                     </div>
@@ -1225,33 +1092,17 @@ const paginatedStock = filteredStock.slice(
           <section className="customer-card purchase-section">
             <div className="purchase-section-head">
               <div>
-                <span className="purchase-step">
-                  STEP 4
-                </span>
                 <h2>Payment</h2>
                 <p className="muted">
-                  Pay now, pay partly, or keep the
-                  amount due to the supplier.
+                  Pay now, pay partly, or keep the amount due to the supplier.
                 </p>
               </div>
-
-              <button
-                type="button"
-                className="small-btn"
-                onClick={addPayment}
-                disabled={!total}
-              >
-                <Plus size={16} />
-                Add Payment
-              </button>
             </div>
 
             <div className="purchase-total-grid">
               <div>
                 <label>Subtotal</label>
-                <strong>
-                  {money(subtotal)}
-                </strong>
+                <strong>{money(subtotal)}</strong>
               </div>
 
               <div>
@@ -1264,8 +1115,7 @@ const paginatedStock = filteredStock.slice(
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      discount:
-                        e.target.value,
+                      discount: e.target.value,
                     })
                   }
                 />
@@ -1273,43 +1123,29 @@ const paginatedStock = filteredStock.slice(
 
               <div className="purchase-grand-total">
                 <label>Total</label>
-                <strong>
-                  {money(total)}
-                </strong>
+                <strong>{money(total)}</strong>
               </div>
 
               <div>
-                <label>Paid</label>
-                <strong>
-                  {money(paid)}
-                </strong>
+                <label>Paying Now</label>
+                <strong>{money(paid)}</strong>
               </div>
 
               <div className="purchase-due">
                 <label>Supplier Due</label>
-                <strong>
-                  {money(due)}
-                </strong>
+                <strong>{money(due)}</strong>
               </div>
             </div>
 
-            {payments.map((payment, index) => (
-              <div
-                className="purchase-payment-row"
-                key={index}
-              >
+            {payments.length > 0 && (
+              <div className="purchase-payment-row">
                 <div>
                   <label>Payment Mode</label>
+
                   <select
-                    value={
-                      payment.payment_mode
-                    }
+                    value={payments[0].payment_mode}
                     onChange={(e) =>
-                      updatePayment(
-                        index,
-                        "payment_mode",
-                        e.target.value
-                      )
+                      updatePayment(0, "payment_mode", e.target.value)
                     }
                   >
                     <option>Cash</option>
@@ -1320,50 +1156,36 @@ const paginatedStock = filteredStock.slice(
                 </div>
 
                 <div>
-                  <label>Amount</label>
+                  <label>Paying Now</label>
+
                   <input
                     type="number"
                     min="0"
+                    max={total}
                     step="0.01"
-                    value={payment.amount}
-                    onChange={(e) =>
-                      updatePayment(
-                        index,
-                        "amount",
-                        e.target.value
-                      )
-                    }
+                    value={payments[0].amount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+
+                      updatePayment(0, "amount", value);
+                    }}
+                    placeholder="Amount paying now"
                   />
                 </div>
 
                 <div>
                   <label>Reference</label>
+
                   <input
-                    value={
-                      payment.reference_no
-                    }
+                    value={payments[0].reference_no}
                     onChange={(e) =>
-                      updatePayment(
-                        index,
-                        "reference_no",
-                        e.target.value
-                      )
+                      updatePayment(0, "reference_no", e.target.value)
                     }
                     placeholder="Optional"
                   />
                 </div>
-
-                <button
-                  type="button"
-                  className="icon-btn danger"
-                  onClick={() =>
-                    removePayment(index)
-                  }
-                >
-                  <Trash2 size={17} />
-                </button>
               </div>
-            ))}
+            )}
 
             <div className="purchase-note">
               <label>Purchase Note</label>
@@ -1383,11 +1205,7 @@ const paginatedStock = filteredStock.slice(
               type="button"
               className="purchase-save-main"
               onClick={savePurchase}
-              disabled={
-                saving ||
-                !form.supplierId ||
-                !items.length
-              }
+              disabled={saving || !form.supplierId || !items.length}
             >
               {saving
                 ? "Saving Purchase..."
@@ -1400,176 +1218,219 @@ const paginatedStock = filteredStock.slice(
       {/* =====================================================
           HISTORY
       ===================================================== */}
-
       {mode === "history" && (
-        <section className="table-card purchase-history">
-          <div className="purchase-section-head">
-            <div>
-              <h2>Purchase History</h2>
-              <p className="muted">
-                Previous purchases from suppliers.
-              </p>
+        <>
+          {/* =====================================================
+        SUPPLIER LIST
+    ===================================================== */}
+
+          <section className="table-card supplier-list-section">
+            <div className="purchase-section-head">
+              <div>
+                <h2>Supplier List</h2>
+                <p className="muted">
+                  Select a supplier to open their profile.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="small-btn"
+                onClick={() => setShowSupplier(true)}
+              >
+                <Plus size={16} />
+                Add Supplier
+              </button>
             </div>
 
-            <button
-              type="button"
-              className="small-btn"
-              onClick={load}
-              disabled={loading}
-            >
-              <RotateCcw size={16} />
-              Refresh
-            </button>
-          </div>
+            {loading ? (
+              <div className="purchase-empty">Loading suppliers...</div>
+            ) : !suppliers.length ? (
+              <div className="purchase-empty">
+                <PackagePlus size={34} />
+                <strong>No suppliers yet</strong>
+                <span>Add a supplier to start recording purchases.</span>
+              </div>
+            ) : (
+              <>
+                <div className="supplier-list-grid">
+                  {paginatedSuppliers.map((supplier) => (
+                    <button
+                      type="button"
+                      className="supplier-list-card"
+                      key={supplier.id}
+                      onClick={() => {
+                        if (onOpenSupplier) {
+                          onOpenSupplier(supplier);
+                        }
+                      }}
+                    >
+                      <div className="supplier-list-card-top">
+                        <div>
+                          <strong>{supplier.name}</strong>
 
-          {loading ? (
-            <div className="purchase-empty">
-              Loading purchases...
-            </div>
-          ) : !purchases.length ? (
-            <div className="purchase-empty">
-              <PackagePlus size={34} />
-              <strong>
-                No purchases yet
-              </strong>
-              <span>
-                Click New Purchase to record your
-                first purchase.
-              </span>
-            </div>
-          ) : (
-            <div className="purchase-history-list">
-              {purchases.map((purchase) => (
-                <div
-                  className="purchase-history-card"
-                  key={purchase.id}
-                >
-                  <div>
-                    <strong>
-                      {purchase.purchase_no}
-                    </strong>
-                    <span>
-                      {purchase.purchase_date}
-                      {" · "}
-                      {purchase.suppliers?.name ||
-                        "Unknown supplier"}
-                    </span>
-                  </div>
+                          {supplier.phone && <span>📞 {supplier.phone}</span>}
+                        </div>
 
-                  <div>
-                    <strong>
-                      {money(purchase.total)}
-                    </strong>
-                    <span>
-                      Paid {money(purchase.paid)}
-                      {" · "}
-                      Due {money(purchase.due)}
-                    </span>
-                  </div>
+                      </div>
 
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    onClick={() =>
-                      openDetails(purchase)
-                    }
-                    aria-label="View purchase"
-                  >
-                    <Eye size={17} />
-                  </button>
+                      {supplier.address && <p>{supplier.address}</p>}
+
+                      <div className="supplier-list-card-footer">
+                      
+                        <span>View Profile</span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
-            {/* =====================================================
-          SUPPLIER RETURN HISTORY
-      ===================================================== */}
+                {/* Supplier Pagination */}
+                {supplierTotalPages > 1 && (
+                  <div className="purchase-pagination">
+                    <button
+                      type="button"
+                      className="small-btn"
+                      disabled={supplierPage === 1}
+                      onClick={() =>
+                        setSupplierPage((page) => Math.max(1, page - 1))
+                      }
+                    >
+                      Previous
+                    </button>
 
-      {mode === "history" && (
-        <section className="table-card purchase-history">
-          <div className="purchase-section-head">
-            <div>
-              <h2>Supplier Return History</h2>
-              <p className="muted">
-                Returns sent back to suppliers.
-              </p>
-            </div>
+                    <div className="purchase-page-numbers">
+                      {Array.from(
+                        {
+                          length: supplierTotalPages,
+                        },
+                        (_, index) => index + 1,
+                      ).map((page) => (
+                        <button
+                          type="button"
+                          key={page}
+                          className={
+                            supplierPage === page
+                              ? "page-btn active"
+                              : "page-btn"
+                          }
+                          onClick={() => setSupplierPage(page)}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
 
-            <button
-              type="button"
-              className="small-btn"
-              onClick={load}
-              disabled={loading}
-            >
-              <RotateCcw size={16} />
-              Refresh
-            </button>
-          </div>
-
-          {!supplierReturns.length ? (
-            <div className="purchase-empty">
-              <PackagePlus size={34} />
-
-              <strong>
-                No supplier returns yet
-              </strong>
-
-              <span>
-                Supplier returns will appear here.
-              </span>
-            </div>
-          ) : (
-            <div className="purchase-history-list">
-              {supplierReturns.map((item) => (
-                <div
-                  className="purchase-history-card"
-                  key={item.id}
-                >
-                  <div>
-                    <strong>
-                      SR-{item.return_no}
-                    </strong>
-
-                    <span>
-                      {item.return_date}
-                      {" · "}
-                      {suppliers.find(
-  (supplier) =>
-    Number(supplier.id) === Number(item.supplier_id)
-)?.name || "Unknown supplier"}
-                    </span>
+                    <button
+                      type="button"
+                      className="small-btn"
+                      disabled={supplierPage === supplierTotalPages}
+                      onClick={() =>
+                        setSupplierPage((page) =>
+                          Math.min(supplierTotalPages, page + 1),
+                        )
+                      }
+                    >
+                      Next
+                    </button>
                   </div>
+                )}
+              </>
+            )}
+          </section>
 
-                  <div>
-                    <strong>
-                      {money(item.total)}
-                    </strong>
+          {/* =====================================================
+        PURCHASE HISTORY
+    ===================================================== */}
 
-                    <span>
-                      Purchase #
-                      {item.purchase_id || "N/A"}
-                    </span>
-                  </div>
+          <section className="table-card purchase-history">
+            <div className="purchase-section-head">
+              <div>
+                <h2>Purchase History</h2>
+                <p className="muted">Previous purchases from suppliers.</p>
+              </div>
 
-                  <div>
-                    <span>
-                      {item.status}
-                    </span>
-
-                    {item.reason && (
-                      <small>
-                        {item.reason}
-                      </small>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <button
+                type="button"
+                className="small-btn"
+                onClick={load}
+                disabled={loading}
+              >
+                <RotateCcw size={16} />
+                Refresh
+              </button>
             </div>
-          )}
-        </section>
+
+            {loading ? (
+              <div className="purchase-empty">Loading purchases...</div>
+            ) : !purchases.length ? (
+              <div className="purchase-empty">
+                <PackagePlus size={34} />
+                <strong>No purchases yet</strong>
+                <span>Click New Purchase to record your first purchase.</span>
+              </div>
+            ) : (
+              <div className="purchase-history-list">
+                {purchases.map((purchase) => (
+                  <div className="purchase-history-card" key={purchase.id}>
+                    <div>
+                      <strong>{purchase.purchase_no}</strong>
+
+                      <span>
+                        {purchase.purchase_date}
+                        {" · "}
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+
+                            const supplier = suppliers.find(
+                              (s) =>
+                                String(s.id) === String(purchase.supplier_id),
+                            );
+
+                            if (supplier && onOpenSupplier) {
+                              onOpenSupplier(supplier);
+                            }
+                          }}
+                          style={{
+                            border: "none",
+                            background: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            color: "#2563eb",
+                          }}
+                        >
+                          {purchase.suppliers?.name || "Unknown supplier"}
+                        </button>
+                      </span>
+                    </div>
+
+                    <div>
+                      <strong>{money(purchase.total)}</strong>
+
+                      <span>
+                        Paid {money(purchase.paid)}
+                        {" · "}
+                        Due {money(purchase.due)}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => openDetails(purchase)}
+                      aria-label="View purchase"
+                    >
+                      <Eye size={17} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
       )}
 
       {/* =====================================================
@@ -1577,32 +1438,21 @@ const paginatedStock = filteredStock.slice(
       ===================================================== */}
 
       {showSupplier && (
-        <div
-          className="modal-overlay"
-          onClick={() =>
-            setShowSupplier(false)
-          }
-        >
+        <div className="modal-overlay" onClick={() => setShowSupplier(false)}>
           <div
             className="modal-box purchase-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="purchase-modal-head">
               <div>
                 <h2>Add Supplier</h2>
-                <p className="muted">
-                  Supplier GSTIN is optional.
-                </p>
+                <p className="muted">Supplier GSTIN is optional.</p>
               </div>
 
               <button
                 type="button"
                 className="icon-btn"
-                onClick={() =>
-                  setShowSupplier(false)
-                }
+                onClick={() => setShowSupplier(false)}
               >
                 <X size={19} />
               </button>
@@ -1647,8 +1497,7 @@ const paginatedStock = filteredStock.slice(
               onChange={(e) =>
                 setSupplierForm({
                   ...supplierForm,
-                  gstin:
-                    e.target.value.toUpperCase(),
+                  gstin: e.target.value.toUpperCase(),
                 })
               }
             />
@@ -1658,25 +1507,17 @@ const paginatedStock = filteredStock.slice(
               type="number"
               min="0"
               step="0.01"
-              value={
-                supplierForm.openingDue
-              }
+              value={supplierForm.openingDue}
               onChange={(e) =>
                 setSupplierForm({
                   ...supplierForm,
-                  openingDue:
-                    e.target.value,
+                  openingDue: e.target.value,
                 })
               }
             />
 
             <div className="modal-buttons">
-              <button
-                type="button"
-                onClick={() =>
-                  setShowSupplier(false)
-                }
-              >
+              <button type="button" onClick={() => setShowSupplier(false)}>
                 Cancel
               </button>
 
@@ -1686,9 +1527,7 @@ const paginatedStock = filteredStock.slice(
                 onClick={createSupplier}
                 disabled={saving}
               >
-                {saving
-                  ? "Saving..."
-                  : "Save Supplier"}
+                {saving ? "Saving..." : "Save Supplier"}
               </button>
             </div>
           </div>
@@ -1702,40 +1541,26 @@ const paginatedStock = filteredStock.slice(
       {selectedPurchase && (
         <div
           className="modal-overlay"
-          onClick={() =>
-            setSelectedPurchase(null)
-          }
+          onClick={() => setSelectedPurchase(null)}
         >
           <div
             className="modal-box wide-modal purchase-modal"
-            onClick={(e) =>
-              e.stopPropagation()
-            }
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="purchase-modal-head">
               <div>
-                <h2>
-                  {selectedPurchase.purchase_no}
-                </h2>
+                <h2>{selectedPurchase.purchase_no}</h2>
                 <p className="muted">
-                  {
-                    selectedPurchase
-                      .suppliers?.name
-                  }
+                  {selectedPurchase.suppliers?.name}
                   {" · "}
-                  {
-                    selectedPurchase
-                      .purchase_date
-                  }
+                  {selectedPurchase.purchase_date}
                 </p>
               </div>
 
               <button
                 type="button"
                 className="icon-btn"
-                onClick={() =>
-                  setSelectedPurchase(null)
-                }
+                onClick={() => setSelectedPurchase(null)}
               >
                 <X size={19} />
               </button>
@@ -1743,29 +1568,56 @@ const paginatedStock = filteredStock.slice(
 
             <div className="purchase-detail-items">
               {selectedItems.map((item) => (
-                <div
-                  className="detail-item"
-                  key={item.id}
-                >
-                  <div>
-                    <strong>
-                      {item.item_name}
+                <div className="detail-item" key={item.id}>
+                  <div className="detail-item-main">
+                    <strong className="detail-item-name">
+                      {item.item_name || "Unnamed Item"}
                     </strong>
-                    <span>
-                      {item.stock_no}
-                      {" · Qty "}
-                      {item.qty}
+
+                    <span className="detail-item-meta">
+                      Stock No: {item.stock_no || "-"}
+                      {" · "}
+                      Barcode: {item.barcode || "-"}
                     </span>
                   </div>
 
-                  <strong>
-                    {money(
-                      Number(item.qty) *
-                        Number(
-                          item.purchase_price
-                        )
-                    )}
-                  </strong>
+                  <div className="detail-item-values">
+                    <div>
+                      <span>Qty</span>
+                      <strong>{item.qty}</strong>
+                    </div>
+
+                    <div>
+                      <span>CP</span>
+                      <strong>{money(item.purchase_price)}</strong>
+                    </div>
+
+                    <div>
+                      <span>SP</span>
+                      <strong>{money(item.selling_price)}</strong>
+                    </div>
+
+                    <div>
+                      <span>MRP</span>
+                      <strong>{money(item.mrp)}</strong>
+                    </div>
+
+                    <div>
+                      <span>GST</span>
+                      <strong>{Number(item.gst_rate || 0)}%</strong>
+                    </div>
+
+                    <div className="detail-item-total">
+                      <span>Total</span>
+                      <strong>
+                        {money(
+                          item.line_total ??
+                            Number(item.qty || 0) *
+                              Number(item.purchase_price || 0),
+                        )}
+                      </strong>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1773,47 +1625,35 @@ const paginatedStock = filteredStock.slice(
             <div className="purchase-detail-total">
               <div>
                 Total
-                <strong>
-                  {money(
-                    selectedPurchase.total
-                  )}
-                </strong>
+                <strong>{money(selectedPurchase.total)}</strong>
               </div>
 
-                          <div className="purchase-return-action">
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={openSupplierReturn}
-              >
-                <MinusCircle size={17} />
-                Return to Supplier
-              </button>
-            </div>
+              <div className="purchase-return-action">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={openSupplierReturn}
+                >
+                  <MinusCircle size={17} />
+                  Return to Supplier
+                </button>
+              </div>
 
               <div>
                 Paid
-                <strong>
-                  {money(
-                    selectedPurchase.paid
-                  )}
-                </strong>
+                <strong>{money(selectedPurchase.paid)}</strong>
               </div>
 
               <div>
                 Due
-                <strong>
-                  {money(
-                    selectedPurchase.due
-                  )}
-                </strong>
+                <strong>{money(selectedPurchase.due)}</strong>
               </div>
             </div>
           </div>
         </div>
       )}
 
-            {showSupplierReturn && (
+      {showSupplierReturn && (
         <div
           className="modal-overlay"
           onClick={() => {
@@ -1833,8 +1673,7 @@ const paginatedStock = filteredStock.slice(
                 <p className="muted">
                   {selectedPurchase?.purchase_no}
                   {" · "}
-                  {selectedPurchase?.suppliers?.name ||
-                    "Unknown supplier"}
+                  {selectedPurchase?.suppliers?.name || "Unknown supplier"}
                 </p>
               </div>
 
@@ -1854,14 +1693,9 @@ const paginatedStock = filteredStock.slice(
 
             <div className="purchase-detail-items">
               {returnItems.map((item, index) => (
-                <div
-                  className="detail-item"
-                  key={`${item.stock_id}-${index}`}
-                >
+                <div className="detail-item" key={`${item.stock_id}-${index}`}>
                   <div>
-                    <strong>
-                      {item.item_name}
-                    </strong>
+                    <strong>{item.item_name}</strong>
 
                     <span>
                       {item.stock_no}
@@ -1879,12 +1713,7 @@ const paginatedStock = filteredStock.slice(
                       max={item.purchased_qty}
                       step="1"
                       value={item.qty}
-                      onChange={(e) =>
-                        updateReturnQty(
-                          index,
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => updateReturnQty(index, e.target.value)}
                     />
                   </div>
                 </div>
@@ -1896,9 +1725,7 @@ const paginatedStock = filteredStock.slice(
 
               <input
                 value={returnReason}
-                onChange={(e) =>
-                  setReturnReason(e.target.value)
-                }
+                onChange={(e) => setReturnReason(e.target.value)}
                 placeholder="Example: Damaged item / Wrong item"
               />
             </div>
@@ -1906,9 +1733,7 @@ const paginatedStock = filteredStock.slice(
             <div className="modal-buttons">
               <button
                 type="button"
-                onClick={() =>
-                  setShowSupplierReturn(false)
-                }
+                onClick={() => setShowSupplierReturn(false)}
                 disabled={returnSaving}
               >
                 Cancel
@@ -1920,15 +1745,12 @@ const paginatedStock = filteredStock.slice(
                 onClick={saveSupplierReturn}
                 disabled={returnSaving}
               >
-                {returnSaving
-                  ? "Processing..."
-                  : "Confirm Supplier Return"}
+                {returnSaving ? "Processing..." : "Confirm Supplier Return"}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </main>
   );
 }

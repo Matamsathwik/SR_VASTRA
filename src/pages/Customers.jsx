@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import CustomerForm from "../components/CustomerForm";
 import CustomerTable from "../components/CustomerTable";
-import CustomerProfile from "./CustomerProfile";
 import { customerService } from "../services/customerService";
 import { billService } from "../services/billService";
 
-
-export default function Customers() {
+export default function Customers({ onOpenCustomer }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [editingCustomer, setEditingCustomer] = useState(null);
 
   useEffect(() => {
@@ -17,12 +14,15 @@ export default function Customers() {
   }, []);
 
   const loadCustomers = async () => {
-    const data = await customerService.getAll();
-    setCustomers(data);
+    try {
+      const data = await customerService.getAll();
+      setCustomers(data);
+    } catch (error) {
+      console.error("Failed to load customers:", error);
+    }
   };
 
   const saveCustomer = async (customer) => {
-    
     // ---------- EDIT ----------
     if (editingCustomer) {
       try {
@@ -67,77 +67,87 @@ export default function Customers() {
     }
 
     try {
-  const created = await customerService.create(customer);
+      const created =
+        await customerService.create(customer);
 
-  setCustomers((prev) => [...prev, created]);
+      setCustomers((prev) => [...prev, created]);
 
-  alert("Customer added.");
-} catch (e) {
-  alert(e.message);
-}
-
+      alert("Customer added.");
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   const deleteCustomer = async (customer) => {
-  const bills = await billService.getByCustomer(customer.id);
+    const bills =
+      await billService.getByCustomer(customer.id);
 
-  if (bills.length > 0) {
-    alert("Cannot delete customer because bills already exist.");
-    return;
-  }
+    if (bills.length > 0) {
+      alert(
+        "Cannot delete customer because bills already exist."
+      );
+      return;
+    }
 
-  if (!window.confirm(`Delete ${customer.name}?`)) return;
+    if (
+      !window.confirm(
+        `Delete ${customer.name}?`
+      )
+    ) {
+      return;
+    }
 
-  try {
-    await customerService.delete(customer.id);
+    try {
+      await customerService.delete(customer.id);
 
-    setCustomers((prev) =>
-      prev.filter((c) => c.id !== customer.id)
-    );
+      setCustomers((prev) =>
+        prev.filter(
+          (c) => c.id !== customer.id
+        )
+      );
 
-    alert("Customer deleted.");
-  } catch (e) {
-    alert(e.message);
-  }
-};
+      alert("Customer deleted.");
+    } catch (e) {
+      alert(e.message);
+    }
+  };
 
   const filtered = customers.filter((c) => {
     return (
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.name
+        .toLowerCase()
+        .includes(search.toLowerCase()) ||
       String(c.id).includes(search) ||
       (c.phone || "").includes(search)
     );
   });
 
-  if (selectedCustomer) {
-    return (
-      <CustomerProfile
-        customer={selectedCustomer}
-        goBack={() => setSelectedCustomer(null)}
-      />
-    );
-  }
-
   return (
     <main className="content">
-      <h1 className="customer-title">Customers</h1>
+      <h1 className="customer-title">
+        Customers
+      </h1>
 
       <input
         className="search-box"
         placeholder="Search by Name, ID or Phone"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) =>
+          setSearch(e.target.value)
+        }
       />
 
       <CustomerForm
         onSave={saveCustomer}
         editingCustomer={editingCustomer}
-        onCancel={() => setEditingCustomer(null)}
+        onCancel={() =>
+          setEditingCustomer(null)
+        }
       />
 
       <CustomerTable
         customers={filtered}
-        onSelect={setSelectedCustomer}
+        onSelect={onOpenCustomer}
         onEdit={setEditingCustomer}
         onDelete={deleteCustomer}
       />

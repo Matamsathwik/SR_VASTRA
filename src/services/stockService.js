@@ -2,84 +2,71 @@ import { supabase } from "../lib/supabase";
 
 export const stockService = {
   async getAll() {
-  const { data, error } = await supabase
-    .from("stock")
-    .select("*")
-    .order("id", { ascending: true });
+    const { data, error } = await supabase
+      .from("stock")
+      .select("*")
+      .order("id", { ascending: true });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  // Get supplier-return adjustments only
-  const { data: adjustments, error: adjustmentError } =
-    await supabase
-      .from("stock_adjustments")
-      .select("stock_id, adjustment_type, quantity");
+    return data.map((s) => ({
+      id: s.id,
 
-  if (adjustmentError) throw adjustmentError;
+      stockNo: s.stock_no
+        ? String(s.stock_no).replace(/\D/g, "")
+        : "",
 
-  // Calculate total quantity sent back to supplier per stock item
-  const returnedMap = {};
+      supplier: s.supplier || "",
+      itemName: s.item_name || "",
+      category: s.category || "",
 
-  (adjustments || []).forEach((a) => {
-    if (a.adjustment_type === "Return to Supplier") {
-      const stockId = Number(a.stock_id);
+      barcode: s.barcode || "",
+      hsnCode: s.hsn_code || "",
 
-      returnedMap[stockId] =
-        (returnedMap[stockId] || 0) + Number(a.quantity || 0);
-    }
-  });
+      gstRate: Number(s.gst_rate || 0),
+      gstInclusive: s.gst_inclusive !== false,
 
-  return data.map((s) => ({
-    id: s.id,
-    stockNo: s.stock_no
-      ? String(s.stock_no).replace(/\D/g, "")
-      : "",
-    supplier: s.supplier,
-    itemName: s.item_name,
-    category: s.category,
+      mrp: Number(s.mrp || 0),
 
-    barcode: s.barcode || "",
-    hsnCode: s.hsn_code || "",
-    gstRate: Number(s.gst_rate || 0),
-    gstInclusive: s.gst_inclusive !== false,
-    mrp: Number(s.mrp || 0),
+      purchasePrice: Number(s.purchase_price || 0),
+      sellingPrice: Number(s.selling_price || 0),
 
-    purchasePrice: s.purchase_price,
-    sellingPrice: s.selling_price,
+      totalQty: Number(s.total_qty || 0),
+      currentQty: Number(s.current_qty || 0),
 
-    totalQty: s.total_qty,
-    currentQty: s.current_qty,
+      reorderLevel: Number(s.reorder_level || 0),
 
-    // Total supplier returns
-    returnedQty: returnedMap[Number(s.id)] || 0,
+      status: s.status || "active",
+      statusReason: s.status_reason || "",
+      statusUpdatedAt: s.status_updated_at || null,
 
-    status: s.status || "active",
-    statusReason: s.status_reason || "",
-
-    purchaseDate: s.created_at?.split("T")[0],
-    statusUpdatedAt: s.status_updated_at,
-  }));
-},
+      purchaseDate: s.created_at
+        ? s.created_at.split("T")[0]
+        : "",
+    }));
+  },
 
   async create(item) {
     const { data, error } = await supabase
       .from("stock")
       .insert({
-        supplier: item.supplier,
+        supplier: item.supplier || null,
         item_name: item.itemName,
         barcode: item.barcode || null,
-        category: item.category,
+        category: item.category || null,
 
-        purchase_price: item.purchasePrice,
-        selling_price: item.sellingPrice,
-        mrp: item.mrp ?? 0,
+        purchase_price: Number(item.purchasePrice || 0),
+        selling_price: Number(item.sellingPrice || 0),
+        mrp: Number(item.mrp || 0),
 
         hsn_code: item.hsnCode || null,
-        gst_rate: item.gstRate ?? 0,
+        gst_rate: Number(item.gstRate || 0),
         gst_inclusive: item.gstInclusive !== false,
 
-        total_qty: item.totalQty,
-        current_qty: item.currentQty,
+        total_qty: Number(item.totalQty || 0),
+        current_qty: Number(
+          item.currentQty ?? item.totalQty ?? 0
+        ),
 
         status: "active",
         status_reason: null,
@@ -93,102 +80,75 @@ export const stockService = {
   },
 
   async update(id, item) {
-  const { error } = await supabase
-    .from("stock")
-    .update({
-      supplier: item.supplier,
-      item_name: item.itemName,
-      barcode: item.barcode || null, 
-      category: item.category,
-      purchase_price: item.purchasePrice,
-      selling_price: item.sellingPrice,
-      mrp: item.mrp ?? 0,
-      hsn_code: item.hsnCode || null,
-      gst_rate: item.gstRate ?? 0,
-      gst_inclusive: item.gstInclusive !== false,
-      total_qty: item.totalQty,
-      current_qty: item.currentQty,
-    })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("stock")
+      .update({
+        supplier: item.supplier || null,
+        item_name: item.itemName,
+        barcode: item.barcode || null,
+        category: item.category || null,
 
-  if (error) throw error;
-},
+        purchase_price: Number(item.purchasePrice || 0),
+        selling_price: Number(item.sellingPrice || 0),
+        mrp: Number(item.mrp || 0),
+
+        hsn_code: item.hsnCode || null,
+        gst_rate: Number(item.gstRate || 0),
+        gst_inclusive: item.gstInclusive !== false,
+
+        total_qty: Number(item.totalQty || 0),
+        current_qty: Number(item.currentQty || 0),
+      })
+      .eq("id", id);
+
+    if (error) throw error;
+  },
 
   async adjustStock(id, quantity, type) {
-  const qty = Number(quantity);
+    const qty = Number(quantity);
 
-  if (!Number.isInteger(qty) || qty <= 0) {
-    throw new Error("Quantity must be a positive whole number.");
-  }
+    if (!Number.isInteger(qty) || qty <= 0) {
+      throw new Error("Invalid adjustment quantity.");
+    }
 
-  if (!type) {
-    throw new Error("Please select an adjustment type.");
-  }
+    // Get the latest quantity directly from Supabase
+    const { data: item, error: fetchError } = await supabase
+      .from("stock")
+      .select("id, item_name, current_qty, total_qty")
+      .eq("id", id)
+      .single();
 
-  const { data: stock, error: fetchError } = await supabase
-    .from("stock")
-    .select("id, current_qty, total_qty")
-    .eq("id", id)
-    .single();
+    if (fetchError) throw fetchError;
 
-  if (fetchError) throw fetchError;
+    const currentQty = Number(item.current_qty || 0);
 
-  if (!stock) {
-    throw new Error("Stock item not found.");
-  }
+    if (qty > currentQty) {
+      throw new Error(
+        `Quantity cannot exceed available stock (${currentQty}).`
+      );
+    }
 
-  const currentQty = Number(stock.current_qty || 0);
+    const newCurrentQty = currentQty - qty;
 
-  if (qty > currentQty) {
-    throw new Error(
-      `Only ${currentQty} pieces are available.`
-    );
-  }
+    const { error: updateError } = await supabase
+      .from("stock")
+      .update({
+        current_qty: newCurrentQty,
+        status: "active",
+        status_reason: type || null,
+        status_updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
 
-  // Record the adjustment
-  const { error: adjustmentError } = await supabase
-    .from("stock_adjustments")
-    .insert({
-      stock_id: id,
-      adjustment_type: type,
+    if (updateError) throw updateError;
+
+    return {
+      id: item.id,
+      itemName: item.item_name,
       quantity: qty,
-    });
-
-  if (adjustmentError) throw adjustmentError;
-
-  // Reduce available stock
-  const newQty = currentQty - qty;
-
-  const { data, error } = await supabase
-    .from("stock")
-    .update({
-      current_qty: newQty,
-      status: newQty === 0 ? "out_of_stock" : "active",
-      status_reason: null,
-      status_updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw error;
-
-  return data;
-},
-
-async getReturnedQuantity(stockId) {
-  const { data, error } = await supabase
-    .from("stock_adjustments")
-    .select("quantity")
-    .eq("stock_id", stockId)
-    .eq("adjustment_type", "Return to Supplier");
-
-  if (error) throw error;
-
-  return (data || []).reduce(
-    (total, row) => total + Number(row.quantity || 0),
-    0
-  );
-},
-
+      type,
+      previousQty: currentQty,
+      currentQty: newCurrentQty,
+    };
+  },
 };

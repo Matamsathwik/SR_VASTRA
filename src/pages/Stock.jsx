@@ -25,10 +25,9 @@ const categories = [
   "Other",
 ];
 
-export default function Stock() {
+export default function Stock({ onOpenStock }) {
   const [stock, setStock] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
 
@@ -516,7 +515,7 @@ const paginatedStock = filteredStock.slice(
             placeholder="Search stock..."
             value={search}
             onChange={(e) => {
-  setSearch(e.target.value);
+    setSearch(e.target.value);
   setStockPage(1);
 }}
             style={{ width: "240px" }}
@@ -595,7 +594,7 @@ const paginatedStock = filteredStock.slice(
                     >
                       <button
                         className="action-btn edit"
-                        onClick={() => setViewItem(item)}
+                        onClick={() => onOpenStock(item)}
                       >
                         View
                       </button>
@@ -609,40 +608,34 @@ const paginatedStock = filteredStock.slice(
                         Edit
                       </button>
 
+                      
                       <button
                         className="action-btn edit"
-                        disabled={item.currentQty === 0}
-                        onClick={() =>
-                          openAdjustment(item)
-                        }
-                      >
-                        Adjust Stock
-                      </button>
-                      <button
-  className="action-btn edit"
-  onClick={() => {
-    const copies = Number(
-      prompt(
-        `How many labels do you want to print?\nAvailable quantity: ${item.currentQty}`,
-        item.currentQty
-      )
-    );
+                        onClick={() => {
+                          const copies = Number(
+                            prompt(
+                              `How many labels do you want to print?\nAvailable quantity: ${item.currentQty}`,
+                              item.currentQty
+                            )
+                          );
 
-    if (
-      Number.isInteger(copies) &&
-      copies > 0 &&
-      copies <= item.currentQty
-    ) {
-      printStockLabel(item, copies);
-    } else if (copies > item.currentQty) {
-      alert(
-        `You only have ${item.currentQty} pieces available.`
-      );
-    }
-  }}
->
-  Print Label
-</button>
+                        if (
+                          Number.isInteger(copies) &&
+                          copies > 0 &&
+                          copies <= item.currentQty
+                        ) {
+                        printStockLabel(item, copies);
+                        } else if (copies > item.currentQty) {
+                        alert(
+                          `You only have ${item.currentQty} pieces available.`
+                        );
+                        } else if (copies !== 0) {
+                        alert("Please enter a valid number.");
+                        }
+                      }}
+                    >
+                      Print Label
+                    </button>
                     </div>
                   </td>
                 </tr>
@@ -651,132 +644,56 @@ const paginatedStock = filteredStock.slice(
           </tbody>
         </table>
         <div
-  style={{
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "8px",
-    flexWrap: "wrap",
-    marginTop: "20px",
-  }}
->
-  <button
-    className="small-btn"
-    disabled={stockPage === 1}
-    onClick={() =>
-      setStockPage((page) => Math.max(1, page - 1))
-    }
-  >
-    Previous
-  </button>
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
+            marginTop: "20px",
+          }}
+        >
+        <button
+          className="small-btn"
+          disabled={stockPage === 1}
+          onClick={() =>
+            setStockPage((page) => Math.max(1, page - 1))
+          } 
+        >
+          Previous
+        </button>
 
-  {Array.from(
-    { length: stockTotalPages },
-    (_, index) => index + 1
-  ).map((page) => (
-    <button
-      key={page}
-      className="small-btn"
-      onClick={() => setStockPage(page)}
-      style={{
-        fontWeight: stockPage === page ? "700" : "400",
-      }}
-    >
-      {page}
-    </button>
-  ))}
+        {Array.from(
+          { length: stockTotalPages },
+          (_, index) => index + 1
+        ).map((page) => (
+        <button
+          key={page}
+          className="small-btn"
+          onClick={() => setStockPage(page)}
+          style={{
+            fontWeight: stockPage === page ? "700" : "400",
+          }}
+        >
+          {page}
+        </button>
+      ))}
 
-  <button
-    className="small-btn"
-    disabled={stockPage === stockTotalPages}
-    onClick={() =>
-      setStockPage((page) =>
-        Math.min(stockTotalPages, page + 1)
-      )
-    }
-  >
-    Next
-  </button>
-</div>
+        <button
+          className="small-btn"
+          disabled={stockPage === stockTotalPages}
+          onClick={() =>
+            setStockPage((page) =>
+            Math.min(stockTotalPages, page + 1)
+          )
+          }
+        >
+          Next
+        </button>
+        </div>
       </div>
 
-      {/* =========================
-          VIEW MODAL
-      ========================== */}
-
-      {viewItem && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h2>{viewItem.itemName}</h2>
-
-            <div className="invoice-box">
-              
-
-              <div className="invoice-row">
-                <span>Stock No</span>
-                <strong>{viewItem.stockNo || "-"}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Supplier</span>
-                <strong>{viewItem.supplier || "-"}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Category</span>
-                <strong>{viewItem.category}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Purchase Price</span>
-                <strong>₹{viewItem.purchasePrice}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Selling Price</span>
-                <strong>₹{viewItem.sellingPrice}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Total Quantity</span>
-                <strong>{viewItem.totalQty}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Available Quantity</span>
-                <strong>{viewItem.currentQty}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Returned to Supplier</span>
-                <strong>{viewItem.returnedQty || 0}</strong>
-              </div>
-
-              <div className="invoice-row">
-                <span>Status</span>
-                <strong>{getStatus(viewItem)}</strong>
-              </div>
-
-             
-
-              <div className="invoice-row">
-                <span>Purchase Date</span>
-                <strong>
-                  {viewItem.purchaseDate || "-"}
-                </strong>
-              </div>
-            </div>
-
-            <button
-              className="save-btn"
-              style={{ width: "100%", marginTop: 15 }}
-              onClick={() => setViewItem(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
+      
 
       {/* =========================
           EDIT MODAL
@@ -882,190 +799,6 @@ const paginatedStock = filteredStock.slice(
           </div>
         </div>
       )}
-
-      {/* =========================
-    ADJUST STOCK MODAL
-========================== */}
-
-{adjustItem && (
-  <div className="modal-overlay">
-    <div
-      className="modal-box"
-      style={{
-        maxWidth: "520px",
-        width: "90%",
-        padding: "22px",
-        boxSizing: "border-box",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ margin: "0 0 12px" }}>
-        Stock Adjustment
-      </h2>
-
-      {/* STOCK INFORMATION */}
-
-      <div
-        className="invoice-box"
-        style={{
-          marginBottom: 12,
-          padding: "4px 12px",
-        }}
-      >
-        <div className="invoice-row">
-          <span>Supplier</span>
-          <strong>
-            {adjustItem.supplier || "-"}
-          </strong>
-        </div>
-
-        <div className="invoice-row">
-          <span>Category</span>
-          <strong>
-            {adjustItem.category}
-          </strong>
-        </div>
-
-        <div className="invoice-row">
-          <span>Item</span>
-          <strong>
-            {adjustItem.itemName}
-          </strong>
-        </div>
-
-        <div className="invoice-row">
-          <span>Total Quantity</span>
-          <strong>
-            {adjustItem.totalQty}
-          </strong>
-        </div>
-
-        <div className="invoice-row">
-          <span>Available Quantity</span>
-          <strong>
-            {adjustItem.currentQty}
-          </strong>
-        </div>
-      </div>
-
-      {/* ADJUSTMENT TYPE */}
-
-      <label
-        style={{
-          display: "block",
-          fontWeight: 600,
-          marginBottom: 5,
-          fontSize: 14,
-        }}
-      >
-        Adjustment Type
-      </label>
-
-      <select
-        value={adjustment.type}
-        onChange={(e) =>
-          setAdjustment({
-            ...adjustment,
-            type: e.target.value,
-          })
-        }
-        style={{
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
-        <option>Return to Supplier</option>
-        <option>Damaged</option>
-        <option>Not Needed</option>
-        <option>Other</option>
-      </select>
-
-      {/* QUANTITY */}
-
-      <label
-        style={{
-          display: "block",
-          fontWeight: 600,
-          marginTop: 10,
-          marginBottom: 5,
-          fontSize: 14,
-        }}
-      >
-        Quantity to Adjust
-      </label>
-
-      <input
-        type="number"
-        min="1"
-        max={adjustItem.currentQty}
-        placeholder={`Maximum ${adjustItem.currentQty}`}
-        value={adjustment.quantity}
-        onChange={(e) =>
-          setAdjustment({
-            ...adjustment,
-            quantity: e.target.value,
-          })
-        }
-        style={{
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      />
-
-      {/* PREVIEW */}
-
-      {Number(adjustment.quantity) > 0 && (
-        <div
-          style={{
-            marginTop: 10,
-            padding: "9px 12px",
-            borderRadius: 10,
-            background: "#faf5e8",
-            fontSize: 14,
-          }}
-        >
-          <strong>
-            Available after adjustment:
-          </strong>{" "}
-          {Math.max(
-            0,
-            adjustItem.currentQty -
-              Number(adjustment.quantity)
-          )}{" "}
-          pieces
-        </div>
-      )}
-
-      {/* BUTTONS */}
-
-      <div
-        className="modal-buttons"
-        style={{
-          marginTop: 12,
-          gap: 8,
-        }}
-      >
-        <button
-          className="save-btn"
-          onClick={submitAdjustment}
-          disabled={loading}
-        >
-          {loading
-            ? "Saving..."
-            : "Confirm Adjustment"}
-        </button>
-
-        <button
-          className="print-btn"
-          onClick={() => setAdjustItem(null)}
-          disabled={loading}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-)}
     </main>
   );
 }
