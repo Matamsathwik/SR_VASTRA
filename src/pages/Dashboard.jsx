@@ -14,7 +14,6 @@ import { stockService } from "../services/stockService";
 import { activityService } from "../services/activityService";
 import { returnService } from "../services/returnService";
 
-
 export default function Dashboard({ user }) {
   const [period, setPeriod] = useState("today");
 
@@ -50,7 +49,7 @@ export default function Dashboard({ user }) {
           stockService.getAll(),
           activityService.getAll(),
           returnService.getAll(),
-  ]);
+        ]);
 
       const formattedBills = billData;
 
@@ -73,83 +72,81 @@ export default function Dashboard({ user }) {
   };
 
   useEffect(() => {
-  loadDashboard();
+    loadDashboard();
 
-  const billsChannel = supabase
-    .channel("dashboard-bills")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "bills",
-      },
-      loadDashboard
-    )
-    .subscribe();
+    const billsChannel = supabase
+      .channel("dashboard-bills")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "bills",
+        },
+        loadDashboard
+      )
+      .subscribe();
 
-  const stockChannel = supabase
-    .channel("dashboard-stock")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "stock",
-      },
-      loadDashboard
-    )
-    .subscribe();
+    const stockChannel = supabase
+      .channel("dashboard-stock")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "stock",
+        },
+        loadDashboard
+      )
+      .subscribe();
 
-  const customerChannel = supabase
-    .channel("dashboard-customers")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "customers",
-      },
-      loadDashboard
-    )
-    .subscribe();
+    const customerChannel = supabase
+      .channel("dashboard-customers")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "customers",
+        },
+        loadDashboard
+      )
+      .subscribe();
 
-  const returnsChannel = supabase
-    .channel("dashboard-returns")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "returns",
-      },
-      loadDashboard
-    )
-    .subscribe();
+    const returnsChannel = supabase
+      .channel("dashboard-returns")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "returns",
+        },
+        loadDashboard
+      )
+      .subscribe();
 
-  const activityChannel = supabase
-    .channel("dashboard-activity")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "activity_logs",
-      },
-      loadDashboard
-    )
-    .subscribe();
+    const activityChannel = supabase
+      .channel("dashboard-activity")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "activity_logs",
+        },
+        loadDashboard
+      )
+      .subscribe();
 
-  return () => {
-    supabase.removeChannel(billsChannel);
-    supabase.removeChannel(stockChannel);
-    supabase.removeChannel(customerChannel);
-    supabase.removeChannel(activityChannel);
-    supabase.removeChannel(returnsChannel);
-  };
-}, []);
-
-  
+    return () => {
+      supabase.removeChannel(billsChannel);
+      supabase.removeChannel(stockChannel);
+      supabase.removeChannel(customerChannel);
+      supabase.removeChannel(activityChannel);
+      supabase.removeChannel(returnsChannel);
+    };
+  }, []);
 
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
@@ -165,8 +162,44 @@ export default function Dashboard({ user }) {
     });
   }, [period, bills, todayDate, weekStartDate, monthStartDate]);
 
+  const returnsByBill = useMemo(() => {
+    const map = new Map();
+
+    returns.forEach((returnItem) => {
+      const billId = Number(returnItem.billId);
+      if (!billId) return;
+
+      map.set(
+        billId,
+        (map.get(billId) || 0) + Number(returnItem.amount || 0)
+      );
+    });
+
+    return map;
+  }, [returns]);
+
+  // Keep Dashboard accounting consistent with Reports:
+  // outstanding = bill total - actual bill payment - returns against that bill.
+  const getBillAccounting = (bill) => {
+    const gross = Number(bill.total || 0);
+    const paid = Number(bill.paid || 0);
+    const returned = Number(returnsByBill.get(Number(bill.id)) || 0);
+
+    const netAmount = Math.max(0, gross - returned);
+    const balance = netAmount - paid;
+
+    return {
+      gross,
+      paid,
+      returned,
+      netAmount,
+      outstanding: Math.max(0, balance),
+      credit: Math.max(0, -balance),
+    };
+  };
+
   const totalGrossSales = filteredBills.reduce(
-    (s, b) => s + Number(b.total || 0),
+    (sum, bill) => sum + Number(bill.total || 0),
     0
   );
 
@@ -183,19 +216,20 @@ export default function Dashboard({ user }) {
   });
 
   const totalReturns = filteredReturns.reduce(
-    (s, r) => s + Number(r.amount || 0),
+    (sum, returnItem) => sum + Number(returnItem.amount || 0),
     0
   );
 
   const totalSales = Math.max(0, totalGrossSales - totalReturns);
   const totalBills = filteredBills.length;
 
-  const totalCollected = filteredBills.reduce(
-    (s, b) => s + Number(b.paid || 0),
+  // Pending Due is actual outstanding on the selected period's bills.
+  // It is NOT Net Sales - Collected, because returns on paid bills create
+  // customer credit rather than negative/incorrect outstanding.
+  const pendingDue = filteredBills.reduce(
+    (sum, bill) => sum + getBillAccounting(bill).outstanding,
     0
   );
-
-  const pendingDue = Math.max(0, totalSales - totalCollected);
 
   const paymentMap = { Cash: 0, UPI: 0, Card: 0 };
 
@@ -223,67 +257,56 @@ export default function Dashboard({ user }) {
 
   const itemMap = {};
 
-filteredBills.forEach((bill) => {
-  (bill.items || []).forEach((item) => {
-    const stockNo = String(item.stockNo || "").replace(/\D/g, "");
-    const key = `${item.itemName || "Unknown"} (${stockNo})`;
+  filteredBills.forEach((bill) => {
+    (bill.items || []).forEach((item) => {
+      const stockNo = String(item.stockNo || "").replace(/\D/g, "");
+      const key = `${item.itemName || "Unknown"} (${stockNo})`;
 
-    itemMap[key] =
-      (itemMap[key] || 0) + Number(item.qty || 0);
+      itemMap[key] = (itemMap[key] || 0) + Number(item.qty || 0);
+    });
   });
-});
 
-const topItems = Object.entries(itemMap)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 5);
+  const topItems = Object.entries(itemMap)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
-  const lowStock = stock.filter((s) => (s.currentQty || 0) <= 3);
+  const lowStock = stock.filter((item) => (item.currentQty || 0) <= 3);
 
   const getLocalDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
 
-  return `${year}-${month}-${day}`;
-};
-  // ---------- Last 7 Days ----------
-const last7 = Array.from({ length: 7 }, (_, i) => {
-  const d = new Date();
-
-  d.setDate(d.getDate() - (6 - i));
-
-  const date = getLocalDate(d);
-
-  const gross = bills
-    .filter((b) => b.billDate === date)
-    .reduce(
-      (sum, b) => sum + Number(b.total || 0),
-      0
-    );
-
-  const returned = returns
-    .filter((r) => r.returnDate === date)
-    .reduce(
-      (sum, r) => sum + Number(r.amount || 0),
-      0
-    );
-
-  const total = gross - returned;
-
-  return {
-    date,
-    label: d.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-    }),
-    total,
+    return `${year}-${month}-${day}`;
   };
-});
 
-const maxSale = Math.max(
-  ...last7.map((d) => Math.abs(d.total)),
-  1
-);
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+
+    const date = getLocalDate(d);
+
+    const gross = bills
+      .filter((bill) => bill.billDate === date)
+      .reduce((sum, bill) => sum + Number(bill.total || 0), 0);
+
+    const returned = returns
+      .filter((returnItem) => returnItem.returnDate === date)
+      .reduce((sum, returnItem) => sum + Number(returnItem.amount || 0), 0);
+
+    const total = gross - returned;
+
+    return {
+      date,
+      label: d.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+      }),
+      total,
+    };
+  });
+
+  const maxSale = Math.max(...last7.map((day) => Math.abs(day.total)), 1);
 
   return (
     <main className="content">
@@ -361,53 +384,45 @@ const maxSale = Math.max(
       <div className="table-card" style={{ marginTop: 22 }}>
         <h2>7-Day Sales Trend</h2>
 
-        <svg
-  viewBox="0 0 420 180"
-  width="100%"
-  height="220"
->
-  {last7.map((d, i) => {
-    const h = (d.total / maxSale) * 120;
-    const barHeight = Math.abs(h);
+        <svg viewBox="0 0 420 180" width="100%" height="220">
+          {last7.map((day, i) => {
+            const h = (day.total / maxSale) * 120;
+            const barHeight = Math.abs(h);
 
-    return (
-      <g key={d.date}>
-        <rect
-          x={25 + i * 55}
-          y={h >= 0 ? 145 - barHeight : 145}
-          width="32"
-          height={barHeight}
-          rx="6"
-          fill="#A50034"
-        />
+            return (
+              <g key={day.date}>
+                <rect
+                  x={25 + i * 55}
+                  y={h >= 0 ? 145 - barHeight : 145}
+                  width="32"
+                  height={barHeight}
+                  rx="6"
+                  fill="#A50034"
+                />
 
-        <text
-          x={41 + i * 55}
-          y="168"
-          textAnchor="middle"
-          fontSize="10"
-        >
-          {d.label}
-        </text>
+                <text
+                  x={41 + i * 55}
+                  y="168"
+                  textAnchor="middle"
+                  fontSize="10"
+                >
+                  {day.label}
+                </text>
 
-        <text
-          x={41 + i * 55}
-          y={
-            h >= 0
-              ? 140 - barHeight
-              : 150 + barHeight
-          }
-          textAnchor="middle"
-          fontSize="9"
-        >
-          {d.total < 0
-            ? `-₹${Math.abs(d.total)}`
-            : `₹${d.total}`}
-        </text>
-      </g>
-    );
-  })}
-</svg>
+                <text
+                  x={41 + i * 55}
+                  y={h >= 0 ? 140 - barHeight : 150 + barHeight}
+                  textAnchor="middle"
+                  fontSize="9"
+                >
+                  {day.total < 0
+                    ? `-₹${Math.abs(day.total)}`
+                    : `₹${day.total}`}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
       </div>
 
       <div
@@ -455,11 +470,11 @@ const maxSale = Math.max(
               </thead>
 
               <tbody>
-                {lowStock.map((s) => (
-                  <tr key={s.id}>
-                    <td>{s.itemName}</td>
+                {lowStock.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.itemName}</td>
                     <td style={{ color: "#C0392B", fontWeight: 700 }}>
-                      {s.currentQty}
+                      {item.currentQty}
                     </td>
                   </tr>
                 ))}
@@ -471,112 +486,108 @@ const maxSale = Math.max(
         <div className="table-card">
           <h2>Top Selling Items</h2>
 
-<table className="customer-table">
-  <thead>
-    <tr>
-      <th>Item</th>
-      <th>Pieces</th>
-    </tr>
-  </thead>
+          <table className="customer-table">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Pieces</th>
+              </tr>
+            </thead>
 
-  <tbody>
-    {topItems.length === 0 ? (
-      <tr>
-        <td colSpan="2" style={{ textAlign: "center" }}>
-          No sales yet.
-        </td>
-      </tr>
-    ) : (
-      topItems.map(([name, qty]) => (
-        <tr key={name}>
-          <td>{name}</td>
-          <td>{qty}</td>
-        </tr>
-      ))
-    )}
-  </tbody>
-</table>
+            <tbody>
+              {topItems.length === 0 ? (
+                <tr>
+                  <td colSpan="2" style={{ textAlign: "center" }}>
+                    No sales yet.
+                  </td>
+                </tr>
+              ) : (
+                topItems.map(([name, qty]) => (
+                  <tr key={name}>
+                    <td>{name}</td>
+                    <td>{qty}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-{user?.role?.toLowerCase() === "owner" && (
 
-        <div className="table-card">
-  <h2>Recent Activity</h2>
+        {user?.role?.toLowerCase() === "owner" && (
+          <div className="table-card">
+            <h2>Recent Activity</h2>
 
-  {activity.filter((a) => {
-    const activityDate = new Date(a.created_at);
-    const activityLocalDate = formatLocalDate(activityDate);
+            {activity.filter((a) => {
+              const activityDate = new Date(a.created_at);
+              const activityLocalDate = formatLocalDate(activityDate);
 
-    if (period === "today") {
-      return activityLocalDate === todayDate;
-    }
+              if (period === "today") {
+                return activityLocalDate === todayDate;
+              }
 
-    if (period === "week") {
-      return (
-        activityLocalDate >= weekStartDate &&
-        activityLocalDate <= todayDate
-      );
-    }
+              if (period === "week") {
+                return (
+                  activityLocalDate >= weekStartDate &&
+                  activityLocalDate <= todayDate
+                );
+              }
 
-    return (
-      activityLocalDate >= monthStartDate &&
-      activityLocalDate <= todayDate
-    );
-  }).length === 0 ? (
-    <p>No activity for this period.</p>
-  ) : (
-    <table className="customer-table">
-      <thead>
-        <tr>
-          <th>User</th>
-          <th>Action</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {activity
-          .filter((a) => {
-            const activityDate = new Date(a.created_at);
-            const activityLocalDate =
-              formatLocalDate(activityDate);
-
-            if (period === "today") {
-              return activityLocalDate === todayDate;
-            }
-
-            if (period === "week") {
               return (
-                activityLocalDate >= weekStartDate &&
+                activityLocalDate >= monthStartDate &&
                 activityLocalDate <= todayDate
               );
-            }
+            }).length === 0 ? (
+              <p>No activity for this period.</p>
+            ) : (
+              <table className="customer-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
 
-            return (
-              activityLocalDate >= monthStartDate &&
-              activityLocalDate <= todayDate
-            );
-          })
-          .slice(0, 6)
-          .map((a) => (
-            <tr key={a.id}>
-              <td>{a.username}</td>
-              <td>{a.action}</td>
-              <td>
-                {new Date(a.created_at).toLocaleTimeString(
-                  "en-IN",
-                  {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }
-                )}
-              </td>
-            </tr>
-          ))}
-      </tbody>
-    </table>
-  )}
-</div>
-)}
+                <tbody>
+                  {activity
+                    .filter((a) => {
+                      const activityDate = new Date(a.created_at);
+                      const activityLocalDate = formatLocalDate(activityDate);
+
+                      if (period === "today") {
+                        return activityLocalDate === todayDate;
+                      }
+
+                      if (period === "week") {
+                        return (
+                          activityLocalDate >= weekStartDate &&
+                          activityLocalDate <= todayDate
+                        );
+                      }
+
+                      return (
+                        activityLocalDate >= monthStartDate &&
+                        activityLocalDate <= todayDate
+                      );
+                    })
+                    .slice(0, 6)
+                    .map((a) => (
+                      <tr key={a.id}>
+                        <td>{a.username}</td>
+                        <td>{a.action}</td>
+                        <td>
+                          {new Date(a.created_at).toLocaleTimeString("en-IN", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );
