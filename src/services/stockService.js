@@ -98,6 +98,7 @@ export const stockService = {
 
         total_qty: Number(item.totalQty || 0),
         current_qty: Number(item.currentQty || 0),
+        reorder_level: Number(item.reorderLevel || 0),
       })
       .eq("id", id);
 
