@@ -30,6 +30,8 @@ export const billService = {
         total,
         discount: Number(b.discount || 0),
         paid,
+        creditUsed: Number(b.credit_used || 0),
+        totalSettled: paid + Number(b.credit_used || 0),
 
         // Keep due numeric and prevent negative due
         due: Math.max(
