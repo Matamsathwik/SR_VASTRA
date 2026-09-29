@@ -944,7 +944,10 @@ export default function Returns({ onOpenReturn }) {
               <th>Return</th>
               <th>Date</th>
               <th>Customer</th>
-              <th>Bill</th>
+              <th>Customer ID</th>
+              <th>Original Bill</th>
+              <th>Bill Date</th>
+              <th>Settlement</th>
               <th>Amount</th>
             </tr>
           </thead>
@@ -953,7 +956,7 @@ export default function Returns({ onOpenReturn }) {
             {filteredReturns.length === 0 ? (
               <tr>
                 <td
-                  colSpan="5"
+                  colSpan="7"
                   style={{
                     textAlign: "center",
                   }}
@@ -976,11 +979,21 @@ export default function Returns({ onOpenReturn }) {
 
                   <td>{r.returnDate}</td>
 
-                  <td>{r.customerName}</td>
+                  <td>
+                    <strong>{r.customerName || "-"}</strong>
+                  </td>
 
-                  <td>#{r.billNo}</td>
+                  <td>SR-{r.customerId || "-"}</td>
 
-                  <td>₹{r.amount}</td>
+                  <td>#{r.billNo || "-"}</td>
+
+                  <td>{r.billDate || "-"}</td>
+
+                  <td>
+                    {r.settlementType === "REFUND" ? "Refund Paid" : "Credit"}
+                  </td>
+
+                  <td>₹{Number(r.amount || 0).toLocaleString("en-IN")}</td>
                 </tr>
               ))
             )}
