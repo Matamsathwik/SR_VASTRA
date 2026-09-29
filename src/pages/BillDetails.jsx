@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { billService } from "../services/billService";
 import { getBills, saveBills, addActivity } from "../data/storage";
 import { generateInvoice } from "../utils/invoiceGenerator";
+import { customerService } from "../services/customerService";
 const formatDateTime = (value) => {
   if (!value) return "-";
 
@@ -48,7 +49,38 @@ export default function BillDetails({ bill, customer, goBack }) {
   });
 
   const [currentBill, setCurrentBill] = useState(normalizeBill(bill));
+  const [loadedCustomer, setLoadedCustomer] = useState(customer || null);
   const [amount, setAmount] = useState(currentBill.due);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadCustomer = async () => {
+      const customerId =
+        currentBill.customerId ?? currentBill.customer_id;
+
+      if (!customerId) return;
+
+      try {
+        const customers = await customerService.getAll();
+        const found = customers.find(
+          (item) => Number(item.id) === Number(customerId)
+        );
+
+        if (active && found) {
+          setLoadedCustomer(found);
+        }
+      } catch (error) {
+        console.error("Bill customer load failed:", error);
+      }
+    };
+
+    loadCustomer();
+
+    return () => {
+      active = false;
+    };
+  }, [currentBill.customerId, currentBill.customer_id]);
   const [mode, setMode] = useState("Cash");
 
   const status =
@@ -237,7 +269,7 @@ export default function BillDetails({ bill, customer, goBack }) {
         fontSize: 20,
       }}
     >
-      {customer?.name || "Unknown"}
+      {loadedCustomer?.name || customer?.name || "Unknown"}
     </strong>
   </div>
 
@@ -281,7 +313,7 @@ export default function BillDetails({ bill, customer, goBack }) {
         fontSize: 20,
       }}
     >
-      {customer?.phone || "-"}
+      {loadedCustomer?.phone || customer?.phone || "-"}
     </strong>
   </div>
 </div>
@@ -392,7 +424,7 @@ export default function BillDetails({ bill, customer, goBack }) {
             <button
               className="save-btn"
               onClick={() =>
-                generateInvoice(currentBill, customer)
+                generateInvoice(currentBill, loadedCustomer || customer)
               }
             >
               Download Invoice
