@@ -13,6 +13,7 @@ import { activityService } from "../services/activityService";
 import { billService } from "../services/billService";
 
 import { Html5Qrcode } from "html5-qrcode";
+import { supabase } from "../lib/supabase";
 
 export default function Billing({ user }) {
 
@@ -995,10 +996,6 @@ if (invalidItem) {
 
                         setCustomerSearch(c.name);
 
-                        const nextCredit = Math.max(
-                          0,
-                          Number(c.credit_balance || 0)
-                        );
                         setUseCustomerCredit(false);
                         setCreditToUse(0);
 
