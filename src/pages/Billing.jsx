@@ -493,9 +493,17 @@ if (scannedStock.status !== "active") {
       )
     : 0;
 
+  // Due before applying customer credit. Credit is a settlement method,
+  // not a cash payment, so the bill must first carry its real outstanding
+  // balance before the database applies the credit.
+  const dueBeforeCredit = Math.max(
+    0,
+    finalTotal - Number(received || 0)
+  );
+
   const due = Math.max(
     0,
-    finalTotal - Number(received || 0) - appliedCredit
+    dueBeforeCredit - appliedCredit
   );
 
   const saveBill = async () => {
@@ -552,11 +560,13 @@ if (invalidItem) {
 
       paid: Number(received),
 
-      due,
+      // Store the real outstanding amount first. The secured RPC below
+      // deducts customer credit and updates the final due/status atomically.
+      due: dueBeforeCredit,
 
       paymentMode,
 
-      status: due === 0 ? "Paid" : "Pending",
+      status: dueBeforeCredit === 0 ? "Paid" : "Pending",
 
       createdBy: currentUser.id,
 
