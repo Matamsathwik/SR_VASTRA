@@ -529,6 +529,7 @@ const paginatedStock = filteredStock.slice(
               <th>Barcode</th>
               <th>Item</th>
               <th>Category</th>
+              <th>MRP</th>
               <th>Total Qty</th>
               <th>Available</th>
               <th>Status</th>
@@ -540,7 +541,7 @@ const paginatedStock = filteredStock.slice(
             {filteredStock.length === 0 ? (
               <tr>
                 <td
-                  colSpan="8"
+                  colSpan="9"
                   style={{ textAlign: "center" }}
                 >
                   No stock found.
@@ -562,6 +563,8 @@ const paginatedStock = filteredStock.slice(
                 </td>
 
                   <td>{item.category}</td>
+
+                  <td>₹{Number(item.mrp || 0).toLocaleString("en-IN")}</td>
 
                   <td>{item.totalQty}</td>
 
