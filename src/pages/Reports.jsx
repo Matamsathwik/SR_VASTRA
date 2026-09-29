@@ -816,7 +816,7 @@ export default function Reports() {
       tone: "#ea580c",
     },
     {
-      title: "Collected",
+      title: "Net Collected",
       value: totalCollected,
       icon: WalletCards,
       tone: "#16a34a",
@@ -1370,7 +1370,7 @@ export default function Reports() {
         >
           <h2 style={{ margin: 0, fontSize: "18px" }}>Payment Breakdown</h2>
           <p style={{ color: "#64748b", fontSize: "12px", margin: "5px 0 0" }}>
-            Sales payments + customer due collections − cash refunds
+            Payment inflows before cash refunds
           </p>
 
           <div
