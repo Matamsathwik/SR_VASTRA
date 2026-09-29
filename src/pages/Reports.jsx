@@ -483,13 +483,31 @@ export default function Reports() {
     [periodBills]
   );
 
+  // Returns received during the selected period.
+  // This is a cash/operations metric and is based on the actual return date.
   const totalReturns = useMemo(
     () =>
-      periodReturns.reduce((sum, returnItem) => sum + Number(returnItem.amount || 0), 0),
+      periodReturns.reduce(
+        (sum, returnItem) => sum + Number(returnItem.amount || 0),
+        0
+      ),
     [periodReturns]
   );
 
-  const netSales = grossSales - totalReturns;
+  // Net Sales must match the sales made in the selected period.
+  // A return received today for yesterday's bill must NOT reduce today's
+  // sales. Returns are therefore linked back to the bill's sale date.
+  const returnsAgainstPeriodSales = useMemo(
+    () =>
+      periodBills.reduce(
+        (sum, bill) =>
+          sum + Number(returnsByBill.get(Number(bill.id)) || 0),
+        0
+      ),
+    [periodBills, returnsByBill]
+  );
+
+  const netSales = Math.max(0, grossSales - returnsAgainstPeriodSales);
 
   const billPaymentsCollected = useMemo(
     () =>
