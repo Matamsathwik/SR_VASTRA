@@ -735,6 +735,7 @@ export default function Reports() {
   const paymentMap = useMemo(() => {
     const map = { Cash: 0, UPI: 0, Card: 0, "Customer Credit": 0 };
 
+    // Real money collected from customer payments (bill payments and due payments).
     customerPayments
       .filter((payment) => {
         const paymentDate = getPaymentDate(payment);
@@ -745,6 +746,7 @@ export default function Reports() {
         map[mode] = (map[mode] || 0) + Number(payment.amount || 0);
       });
 
+    // Money received at checkout.
     periodBills.forEach((bill) => {
       parseBillPayments(bill).forEach((payment) => {
         const paymentDate = getPaymentDate(payment, bill.billDate);
@@ -753,16 +755,12 @@ export default function Reports() {
         const mode = getPaymentMode(payment);
         map[mode] = (map[mode] || 0) + Number(payment.amount || 0);
       });
-    });
 
-    periodReturns.forEach((returnItem) => {
-      const settlement =
-        String(
-          returnItem.settlementType || returnItem.settlement_type || "CREDIT"
-        ).toUpperCase();
-
-      if (settlement === "CREDIT") {
-        map["Customer Credit"] += Number(returnItem.amount || 0);
+      // Customer credit USED on a bill is a payment method.
+      // It must not be counted as cash/UPI/card and must not be
+      // confused with credit CREATED by a return.
+      if (Number(bill.creditUsed || 0) > 0) {
+        map["Customer Credit"] += Number(bill.creditUsed || 0);
       }
     });
 
