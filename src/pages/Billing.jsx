@@ -739,11 +739,23 @@ if (invalidItem) {
 
           barcode: stockItem.barcode,
 
+          hsnCode: stockItem.hsnCode,
+
+          gstRate: stockItem.gstRate,
+
+          gstInclusive: stockItem.gstInclusive,
+
+          mrp: stockItem.mrp,
+
           purchasePrice: stockItem.purchasePrice,
 
           sellingPrice: stockItem.sellingPrice,
 
+          totalQty: stockItem.totalQty,
+
           currentQty: newQty,
+
+          reorderLevel: stockItem.reorderLevel,
 
         });
 
