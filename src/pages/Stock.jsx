@@ -758,6 +758,19 @@ const paginatedStock = filteredStock.slice(
 
             <input
               type="number"
+              min="0"
+              placeholder="MRP"
+              value={editItem.mrp ?? ""}
+              onChange={(e) =>
+                setEditItem({
+                  ...editItem,
+                  mrp: Number(e.target.value),
+                })
+              }
+            />
+
+            <input
+              type="number"
               placeholder="Purchase Price"
               value={editItem.purchasePrice}
               onChange={(e) =>
