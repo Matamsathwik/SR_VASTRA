@@ -108,6 +108,8 @@ export const returnService = {
 
       amount: Number(r.refund_amount || 0),
 
+      settlementType: r.settlement_type || r.settlementType || "CREDIT",
+
       reason: r.reason || "Other",
 
       originalTotal: Number(r.bills?.total || 0),
@@ -171,6 +173,8 @@ export const returnService = {
       customerId: r.customer_id,
 
       amount: Number(r.refund_amount || 0),
+
+      settlementType: r.settlement_type || r.settlementType || "CREDIT",
 
       reason: r.reason || "Other",
 
