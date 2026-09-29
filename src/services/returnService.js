@@ -75,8 +75,12 @@ export const returnService = {
         customers(name, phone),
         bills!returns_bill_id_fkey(
           bill_no,
+          bill_date,
           total,
-          discount
+          discount,
+          paid,
+          due,
+          status
         ),
         return_items(*)
       `,
@@ -99,6 +103,8 @@ export const returnService = {
       billId: r.bill_id,
 
       billNo: r.bills?.bill_no || "-",
+
+      billDate: r.bills?.bill_date || "",
 
       customerId: r.customer_id,
 
@@ -145,8 +151,12 @@ export const returnService = {
         *,
         bills!returns_bill_id_fkey(
           bill_no,
+          bill_date,
           total,
-          discount
+          discount,
+          paid,
+          due,
+          status
         ),
         return_items(*)
       `,
@@ -170,7 +180,13 @@ export const returnService = {
 
       billNo: r.bills?.bill_no || "-",
 
+      billDate: r.bills?.bill_date || "",
+
       customerId: r.customer_id,
+
+      customerName: r.customers?.name || "-",
+
+      customerPhone: r.customers?.phone || "",
 
       amount: Number(r.refund_amount || 0),
 
