@@ -178,6 +178,10 @@ export default function Billing({ user }) {
 
   const [paymentMode, setPaymentMode] = useState("Cash");
 
+  const [useCustomerCredit, setUseCustomerCredit] = useState(false);
+
+  const [creditToUse, setCreditToUse] = useState(0);
+
   const [showModal, setShowModal] = useState(false);
 
   const [savedBill, setSavedBill] = useState(null);
@@ -466,7 +470,32 @@ if (scannedStock.status !== "active") {
 
   const finalTotal = Math.max(0, total - discount);
 
-  const due = Math.max(0, finalTotal - Number(received));
+  const selectedCustomerData = customers.find(
+    (customer) => Number(customer.id) === Number(selectedCustomer)
+  );
+
+  const availableCredit = Math.max(
+    0,
+    Number(selectedCustomerData?.credit_balance || 0)
+  );
+
+  const maxCreditApplicable = Math.max(
+    0,
+    finalTotal - Number(received || 0)
+  );
+
+  const appliedCredit = useCustomerCredit
+    ? Math.min(
+        Math.max(0, Number(creditToUse || 0)),
+        availableCredit,
+        maxCreditApplicable
+      )
+    : 0;
+
+  const due = Math.max(
+    0,
+    finalTotal - Number(received || 0) - appliedCredit
+  );
 
   const saveBill = async () => {
 
@@ -588,9 +617,54 @@ if (invalidItem) {
 
       }
 
-      // Create bill
-
+      // Create bill. Customer credit is applied immediately after the
+      // bill exists, using a locked database transaction so the same
+      // credit cannot be spent twice.
       const bill = await billService.create(billPayload);
+
+      let finalBill = bill;
+
+      if (appliedCredit > 0) {
+        const { data: usedCredit, error: creditError } = await supabase.rpc(
+          "apply_customer_credit_to_bill",
+          {
+            p_bill_id: Number(bill.id),
+            p_amount: appliedCredit,
+            p_created_by: currentUser.id,
+          }
+        );
+
+        if (creditError) throw creditError;
+
+        if (Number(usedCredit || 0) + 0.005 < appliedCredit) {
+          throw new Error(
+            "The available customer credit changed before checkout. Please refresh and try again."
+          );
+        }
+
+        const { data: refreshedBill, error: refreshedBillError } = await supabase
+          .from("bills")
+          .select("*")
+          .eq("id", bill.id)
+          .single();
+
+        if (refreshedBillError) throw refreshedBillError;
+
+        finalBill = refreshedBill;
+
+        updatedCustomers = updatedCustomers.map((customer) =>
+          Number(customer.id) === Number(customerId)
+            ? {
+                ...customer,
+                credit_balance: Math.max(
+                  0,
+                  Number(customer.credit_balance || 0) - Number(usedCredit || 0)
+                ),
+              }
+            : customer
+        );
+        setCustomers(updatedCustomers);
+      }
 
       // Record activity
 
@@ -700,11 +774,13 @@ if (invalidItem) {
 
         paid: bill.paid,
 
-        due: bill.due,
+        due: finalBill.due,
 
-        paymentMode: bill.payment_mode,
+        paymentMode: finalBill.payment_mode,
 
-        status: bill.status,
+        status: finalBill.status,
+
+        creditUsed: Number(finalBill.credit_used || 0),
 
         items,
 
@@ -731,6 +807,10 @@ if (invalidItem) {
       setDiscount(0);
 
       setPaymentMode("Cash");
+
+      setUseCustomerCredit(false);
+
+      setCreditToUse(0);
 
       setNewCustomer({
 
@@ -783,6 +863,9 @@ if (invalidItem) {
   if (e.target.value === "new") {
 
     setSelectedCustomer("");
+
+    setUseCustomerCredit(false);
+    setCreditToUse(0);
 
     setCustomerSearch("");
 
@@ -911,6 +994,13 @@ if (invalidItem) {
                         setSelectedCustomer(c.id);
 
                         setCustomerSearch(c.name);
+
+                        const nextCredit = Math.max(
+                          0,
+                          Number(c.credit_balance || 0)
+                        );
+                        setUseCustomerCredit(false);
+                        setCreditToUse(0);
 
                         setShowCustomerList(false);
 
@@ -1168,6 +1258,86 @@ if (invalidItem) {
 </div>
 
         <div className="summary-box">
+
+          {customerType === "existing" && selectedCustomer && availableCredit > 0 && (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "12px 14px",
+                border: "1px solid #bbf7d0",
+                background: "#f0fdf4",
+                borderRadius: 10,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <strong style={{ color: "#166534" }}>
+                  Customer Credit: ₹{availableCredit.toLocaleString("en-IN")}
+                </strong>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={useCustomerCredit}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setUseCustomerCredit(checked);
+                      setCreditToUse(
+                        checked
+                          ? Math.min(availableCredit, maxCreditApplicable)
+                          : 0
+                      );
+                    }}
+                  />
+                  Use Credit
+                </label>
+              </div>
+
+              {useCustomerCredit && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    marginTop: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: "#475569" }}>
+                    Credit to use
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={Math.min(availableCredit, maxCreditApplicable)}
+                    step="0.01"
+                    value={creditToUse}
+                    onChange={(e) =>
+                      setCreditToUse(Math.max(0, Number(e.target.value || 0)))
+                    }
+                    style={{ width: 140 }}
+                  />
+                  <span style={{ fontSize: 12, color: "#64748b" }}>
+                    Max ₹{Math.min(availableCredit, maxCreditApplicable).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="summary-row">
 
