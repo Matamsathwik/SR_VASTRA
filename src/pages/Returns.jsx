@@ -7,6 +7,7 @@ import { activityService } from "../services/activityService";
 import { stockService } from "../services/stockService";
 import { authService } from "../services/authService";
 import { Html5Qrcode } from "html5-qrcode";
+import { generateReturnInvoice } from "../utils/returnInvoiceGenerator";
 
 const reasons = ["Exchange", "Damaged", "Wrong Item", "Other"];
 
@@ -140,6 +141,7 @@ export default function Returns({ onOpenReturn }) {
   const [scannedItem, setScannedItem] = useState(null);
   const [savingReturn, setSavingReturn] = useState(false);
   const [savedReturn, setSavedReturn] = useState(null);
+  const [savedReturnCustomer, setSavedReturnCustomer] = useState(null);
   const [showReturnSuccess, setShowReturnSuccess] = useState(false);
   const scannerRef = useRef(null);
 
@@ -594,6 +596,7 @@ export default function Returns({ onOpenReturn }) {
       };
 
       setSavedReturn(refreshedReturn);
+      setSavedReturnCustomer({ ...customer });
       setShowReturnSuccess(true);
 
       if (settlementType === "CREDIT") {
@@ -1145,11 +1148,12 @@ export default function Returns({ onOpenReturn }) {
       <ReturnSuccessModal
         open={showReturnSuccess}
         returnData={savedReturn}
-        customer={customer}
-        phone={customer?.phone || ""}
+        customer={savedReturnCustomer}
+        phone={savedReturnCustomer?.phone || ""}
         onClose={() => {
           setShowReturnSuccess(false);
           setSavedReturn(null);
+          setSavedReturnCustomer(null);
         }}
       />
     </main>
