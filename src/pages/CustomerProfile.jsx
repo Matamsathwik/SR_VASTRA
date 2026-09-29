@@ -358,10 +358,24 @@ export default function CustomerProfile({ customer, goBack }) {
   // Amount calculations
   // -----------------------------
 
-  const totalPurchase = bills.reduce(
-    (sum, bill) => sum + Number(bill.total || 0),
-    0,
-  );
+  // Total Purchase is the customer's net purchase value:
+  // original bill totals minus returned amounts.
+  // A fully returned unpaid/paid bill therefore contributes ₹0.
+  const returnedByBill = returns.reduce((map, returnItem) => {
+    const billId = Number(returnItem.billId);
+    if (!billId) return map;
+    map.set(
+      billId,
+      (map.get(billId) || 0) + Number(returnItem.amount || 0),
+    );
+    return map;
+  }, new Map());
+
+  const totalPurchase = bills.reduce((sum, bill) => {
+    const gross = Number(bill.total || 0);
+    const returned = Number(returnedByBill.get(Number(bill.id)) || 0);
+    return sum + Math.max(0, gross - returned);
+  }, 0);
 
   // Current Due comes directly from bills.due.
   // The return function updates bills.due when a return
