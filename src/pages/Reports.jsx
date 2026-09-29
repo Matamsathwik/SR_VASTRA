@@ -542,7 +542,25 @@ export default function Reports() {
     [customerPayments, periodStart, periodEnd]
   );
 
-  const totalCollected = billPaymentsCollected + customerPaymentsCollected;
+  // Net cash actually retained during the selected period.
+  // Customer-credit returns do not remove cash; only REFUND settlements do.
+  const cashRefundsPaid = useMemo(
+    () =>
+      periodReturns
+        .filter(
+          (returnItem) =>
+            String(
+              returnItem.settlementType || returnItem.settlement_type || ""
+            ).toUpperCase() === "REFUND"
+        )
+        .reduce((sum, returnItem) => sum + Number(returnItem.amount || 0), 0),
+    [periodReturns]
+  );
+
+  const totalCollected = Math.max(
+    0,
+    billPaymentsCollected + customerPaymentsCollected - cashRefundsPaid
+  );
 
   const stockValue = useMemo(
     () =>
@@ -1352,7 +1370,7 @@ export default function Reports() {
         >
           <h2 style={{ margin: 0, fontSize: "18px" }}>Payment Breakdown</h2>
           <p style={{ color: "#64748b", fontSize: "12px", margin: "5px 0 0" }}>
-            Sales payments + customer due collections
+            Sales payments + customer due collections − cash refunds
           </p>
 
           <div
