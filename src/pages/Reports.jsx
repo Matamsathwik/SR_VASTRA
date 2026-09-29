@@ -733,7 +733,7 @@ export default function Reports() {
   }, [stock]);
 
   const paymentMap = useMemo(() => {
-    const map = { Cash: 0, UPI: 0, Card: 0 };
+    const map = { Cash: 0, UPI: 0, Card: 0, "Customer Credit": 0 };
 
     customerPayments
       .filter((payment) => {
@@ -755,6 +755,17 @@ export default function Reports() {
       });
     });
 
+    periodReturns.forEach((returnItem) => {
+      const settlement =
+        String(
+          returnItem.settlementType || returnItem.settlement_type || "CREDIT"
+        ).toUpperCase();
+
+      if (settlement === "CREDIT") {
+        map["Customer Credit"] += Number(returnItem.amount || 0);
+      }
+    });
+
     return map;
   }, [customerPayments, periodBills, periodStart, periodEnd]);
 
@@ -767,9 +778,12 @@ export default function Reports() {
   const cashDeg = paymentTotal ? (paymentMap.Cash / paymentTotal) * 360 : 0;
   const upiDeg = paymentTotal ? (paymentMap.UPI / paymentTotal) * 360 : 0;
   const cardDeg = paymentTotal ? (paymentMap.Card / paymentTotal) * 360 : 0;
+  const creditDeg = paymentTotal
+    ? (paymentMap["Customer Credit"] / paymentTotal) * 360
+    : 0;
 
   const paymentGradient = paymentTotal
-    ? `conic-gradient(#16a34a 0deg ${cashDeg}deg, #2563eb ${cashDeg}deg ${cashDeg + upiDeg}deg, #f59e0b ${cashDeg + upiDeg}deg ${cashDeg + upiDeg + cardDeg}deg)`
+    ? `conic-gradient(#16a34a 0deg ${cashDeg}deg, #2563eb ${cashDeg}deg ${cashDeg + upiDeg}deg, #f59e0b ${cashDeg + upiDeg}deg ${cashDeg + upiDeg + cardDeg}deg, #8b5cf6 ${cashDeg + upiDeg + cardDeg}deg 360deg)`
     : "#e2e8f0";
 
   const pendingBills = useMemo(
@@ -1432,7 +1446,7 @@ export default function Reports() {
         >
           <h2 style={{ margin: 0, fontSize: "18px" }}>Payment Breakdown</h2>
           <p style={{ color: "#64748b", fontSize: "12px", margin: "5px 0 0" }}>
-            Payment inflows before cash refunds
+            Cash / account inflows and customer credit separately
           </p>
 
           <div
@@ -1479,6 +1493,7 @@ export default function Reports() {
               <div>🟢 Cash — {INR(paymentMap.Cash)}</div>
               <div>🔵 UPI — {INR(paymentMap.UPI)}</div>
               <div>🟠 Card — {INR(paymentMap.Card)}</div>
+              <div>🟣 Customer Credit — {INR(paymentMap["Customer Credit"])}</div>
             </div>
           </div>
         </div>
