@@ -13,15 +13,16 @@ export default function ReturnDetails({
 
   const message = `🛍️ *SR Vastra – Return Receipt*
 
-Dear *${customer?.name || "Customer"}*,
+Dear *${customer?.name || returnData.customerName || "Customer"}*,
 
 Your return has been processed successfully.
 
 🧾 *Return Receipt #${returnData.returnNo}*
 
-• Original Bill: #${returnData.billNo}
-• Date: ${returnData.returnDate}
-• Customer ID: ${customer?.id || "-"}
+• Original Bill: #${returnData.billNo || "-"}
+• Original Bill Date: ${returnData.billDate || "-"}
+• Return Date: ${returnData.returnDate || "-"}
+• Customer ID: ${customer?.id || returnData.customerId || "-"}
 • Reason: ${returnData.reason}
 • Item Returned: ${returnData.items?.map(i => `${i.itemName || i.category} × ${i.returnQty || i.qty}`).join(", ")}
 
@@ -40,11 +41,13 @@ Thank you for shopping with *SR Vastra*.
       <h1>Return #{returnData.returnNo}</h1>
 
       <div className="profile-card">
-        <p><strong>Customer:</strong> {customer?.name}</p>
-        <p><strong>Customer ID:</strong> {customer?.id || "-"}</p>
-        <p><strong>Original Bill:</strong> #{returnData.billNo}</p>
-        <p><strong>Date:</strong> {returnData.returnDate}</p>
-        <p><strong>Reason:</strong> {returnData.reason}</p>
+        <p><strong>Customer:</strong> {customer?.name || returnData.customerName || "-"}</p>
+        <p><strong>Customer ID:</strong> {customer?.id || returnData.customerId || "-"}</p>
+        <p><strong>Original Bill:</strong> #{returnData.billNo || "-"}</p>
+        <p><strong>Original Bill Date:</strong> {returnData.billDate || "-"}</p>
+        <p><strong>Return Date:</strong> {returnData.returnDate || "-"}</p>
+        <p><strong>Reason:</strong> {returnData.reason || "Other"}</p>
+        <p><strong>Settlement:</strong> {returnData.settlementType === "REFUND" ? "Refund Paid" : "Customer Credit"}</p>
       </div>
 
       <div className="table-card">
