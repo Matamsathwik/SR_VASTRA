@@ -22,6 +22,7 @@ export default function Dashboard({ user }) {
   const [stock, setStock] = useState(getStock());
   const [activity, setActivity] = useState([]);
   const [returns, setReturns] = useState([]);
+  const [customerPayments, setCustomerPayments] = useState([]);
 
   const today = new Date();
 
@@ -62,6 +63,13 @@ export default function Dashboard({ user }) {
       setStock(stockData);
       setActivity(activityData);
       setReturns(returnData || []);
+
+      const { data: customerPaymentData, error: customerPaymentError } =
+        await supabase.from("customer_payments").select("*");
+
+      if (!customerPaymentError) {
+        setCustomerPayments(customerPaymentData || []);
+      }
     } catch (err) {
       console.error("Dashboard sync failed:", err);
 
@@ -220,7 +228,53 @@ export default function Dashboard({ user }) {
     0
   );
 
-  const totalSales = Math.max(0, totalGrossSales - totalReturns);
+  const returnsAgainstPeriodSales = filteredBills.reduce(
+    (sum, bill) =>
+      sum + Number(returnsByBill.get(Number(bill.id)) || 0),
+    0
+  );
+
+  const totalSales = Math.max(
+    0,
+    totalGrossSales - returnsAgainstPeriodSales
+  );
+
+  const isInPeriod = (date) => {
+    if (period === "today") return date === todayDate;
+    if (period === "week") return date >= weekStartDate && date <= todayDate;
+    return date >= monthStartDate && date <= todayDate;
+  };
+
+  const cashRefundsPaid = filteredReturns
+    .filter(
+      (returnItem) =>
+        String(
+          returnItem.settlementType || returnItem.settlement_type || ""
+        ).toUpperCase() === "REFUND"
+    )
+    .reduce((sum, returnItem) => sum + Number(returnItem.amount || 0), 0);
+
+  const billPaymentsCollected = bills.reduce(
+    (sum, bill) =>
+      sum +
+      (bill.payments || [])
+        .filter((payment) => isInPeriod(payment.date || bill.billDate))
+        .reduce(
+          (paymentSum, payment) =>
+            paymentSum + Number(payment.amount || 0),
+          0
+        ),
+    0
+  );
+
+  const customerPaymentsCollected = customerPayments
+    .filter((payment) => isInPeriod(payment.payment_date || payment.created_at))
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+  const netCollected = Math.max(
+    0,
+    billPaymentsCollected + customerPaymentsCollected - cashRefundsPaid
+  );
   const totalBills = filteredBills.length;
 
   // Pending Due is actual outstanding on the selected period's bills.
@@ -231,29 +285,37 @@ export default function Dashboard({ user }) {
     0
   );
 
-  const paymentMap = { Cash: 0, UPI: 0, Card: 0 };
+  const paymentMap = { Cash: 0, UPI: 0, Card: 0, "Customer Credit": 0 };
 
   // Count actual payments made during the selected period.
   bills.forEach((bill) => {
     (bill.payments || []).forEach((payment) => {
-      const paymentDate = payment.date || bill.billDate;
-      let inPeriod = false;
-
-      if (period === "today") {
-        inPeriod = paymentDate === todayDate;
-      } else if (period === "week") {
-        inPeriod = paymentDate >= weekStartDate && paymentDate <= todayDate;
-      } else {
-        inPeriod = paymentDate >= monthStartDate && paymentDate <= todayDate;
-      }
-
-      if (!inPeriod) return;
+      if (!isInPeriod(payment.date || bill.billDate)) return;
 
       const mode = payment.mode || "Cash";
       if (paymentMap[mode] === undefined) paymentMap[mode] = 0;
       paymentMap[mode] += Number(payment.amount || 0);
     });
   });
+
+  customerPayments.forEach((payment) => {
+    if (!isInPeriod(payment.payment_date || payment.created_at)) return;
+
+    const mode = payment.payment_mode || payment.mode || "Cash";
+    if (paymentMap[mode] === undefined) paymentMap[mode] = 0;
+    paymentMap[mode] += Number(payment.amount || 0);
+  });
+
+  filteredReturns
+    .filter(
+      (returnItem) =>
+        String(
+          returnItem.settlementType || returnItem.settlement_type || "CREDIT"
+        ).toUpperCase() === "CREDIT"
+    )
+    .forEach((returnItem) => {
+      paymentMap["Customer Credit"] += Number(returnItem.amount || 0);
+    });
 
   const itemMap = {};
 
@@ -290,11 +352,15 @@ export default function Dashboard({ user }) {
       .filter((bill) => bill.billDate === date)
       .reduce((sum, bill) => sum + Number(bill.total || 0), 0);
 
-    const returned = returns
-      .filter((returnItem) => returnItem.returnDate === date)
-      .reduce((sum, returnItem) => sum + Number(returnItem.amount || 0), 0);
+    const returnedAgainstSales = bills
+      .filter((bill) => bill.billDate === date)
+      .reduce(
+        (sum, bill) =>
+          sum + Number(returnsByBill.get(Number(bill.id)) || 0),
+        0
+      );
 
-    const total = gross - returned;
+    const total = Math.max(0, gross - returnedAgainstSales);
 
     return {
       date,
@@ -378,6 +444,17 @@ export default function Dashboard({ user }) {
         >
           <h3 style={{ color: "#fff" }}>₹{pendingDue}</h3>
           <p>Pending Due</p>
+        </div>
+
+        <div
+          className="card"
+          style={{
+            background: "linear-gradient(135deg,#166534,#22c55e)",
+            color: "#fff",
+          }}
+        >
+          <h3 style={{ color: "#fff" }}>₹{netCollected.toLocaleString("en-IN")}</h3>
+          <p>Net Collected</p>
         </div>
       </div>
 
