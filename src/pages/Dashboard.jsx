@@ -511,7 +511,7 @@ export default function Dashboard({ user }) {
         }}
       >
         <div className="table-card">
-          <h2>Payment Breakdown</h2>
+          <h2>Payment & Credit Breakdown</h2>
 
           <table className="customer-table">
             <thead>
@@ -524,8 +524,27 @@ export default function Dashboard({ user }) {
             <tbody>
               {Object.entries(paymentMap).map(([mode, amount]) => (
                 <tr key={mode}>
-                  <td>{mode}</td>
-                  <td>₹{amount}</td>
+                  <td>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        background:
+                          mode === "Cash"
+                            ? "#16a34a"
+                            : mode === "UPI"
+                            ? "#2563eb"
+                            : mode === "Card"
+                            ? "#f59e0b"
+                            : "#8b5cf6",
+                        marginRight: 8,
+                      }}
+                    />
+                    {mode}
+                  </td>
+                  <td>₹{Number(amount || 0).toLocaleString("en-IN")}</td>
                 </tr>
               ))}
             </tbody>
@@ -562,6 +581,9 @@ export default function Dashboard({ user }) {
 
         <div className="table-card">
           <h2>Top Selling Items</h2>
+          <p style={{ marginTop: -8, color: "#64748b", fontSize: 12 }}>
+            Net quantity after returns
+          </p>
 
           <table className="customer-table">
             <thead>
