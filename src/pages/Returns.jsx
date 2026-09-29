@@ -10,6 +10,105 @@ import { Html5Qrcode } from "html5-qrcode";
 
 const reasons = ["Exchange", "Damaged", "Wrong Item", "Other"];
 
+function ReturnSuccessModal({ open, returnData, customer, phone, onClose }) {
+  if (!open || !returnData) return null;
+
+  const cleanPhone = (phone || "").replace(/\D/g, "");
+  const whatsappNumber =
+    cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+
+  const message = `🛍️ *SR Vastra – Return Receipt*
+
+Dear *${customer?.name || returnData.customerName || "Customer"}*,
+
+Your return has been processed successfully.
+
+🧾 *Return Receipt #${returnData.returnNo || "-"}*
+
+• Customer ID: ${returnData.customerId || customer?.id || "-"}
+• Original Bill: #${returnData.billNo || "-"}
+• Original Bill Date: ${returnData.billDate || "-"}
+• Return Date: ${returnData.returnDate || "-"}
+• Reason: ${returnData.reason || "Other"}
+• Settlement: ${returnData.settlementType === "REFUND" ? "Refund Paid" : "Customer Credit"}
+• Refund Adjusted: *₹${Number(returnData.amount || 0).toLocaleString("en-IN")}*
+
+Thank you for shopping with *SR Vastra*.
+
+📍 Narayankhed, Telangana`;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box">
+        <div className="success-icon">✓</div>
+        <h2>Return Saved Successfully</h2>
+
+        <div className="invoice-box">
+          <div className="invoice-row">
+            <span>Return No</span>
+            <strong>#{returnData.returnNo}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Customer</span>
+            <strong>{customer?.name || returnData.customerName || "-"}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Customer ID</span>
+            <strong>SR-{returnData.customerId || customer?.id || "-"}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Original Bill</span>
+            <strong>#{returnData.billNo || "-"}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Bill Date</span>
+            <strong>{returnData.billDate || "-"}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Return Date</span>
+            <strong>{returnData.returnDate || "-"}</strong>
+          </div>
+          <div className="invoice-row">
+            <span>Amount</span>
+            <strong>₹{Number(returnData.amount || 0).toLocaleString("en-IN")}</strong>
+          </div>
+        </div>
+
+        <div className="modal-buttons">
+          <button
+            className="print-btn"
+            onClick={() => {
+              import("../utils/returnInvoiceGenerator").then(({ generateReturnInvoice }) =>
+                generateReturnInvoice(returnData, customer)
+              );
+            }}
+          >
+            Download / Print Return
+          </button>
+
+          <button
+            className="save-btn"
+            onClick={() =>
+              window.open(
+                whatsappNumber
+                  ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`
+                  : `https://wa.me/?text=${encodeURIComponent(message)}`,
+                "_blank"
+              )
+            }
+          >
+            WhatsApp
+          </button>
+
+          <button className="save-btn" onClick={onClose}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Returns({ onOpenReturn }) {
   const [customers, setCustomers] = useState([]);
   const [bills, setBills] = useState([]);
@@ -40,6 +139,8 @@ export default function Returns({ onOpenReturn }) {
   const [showScanner, setShowScanner] = useState(false);
   const [scannedItem, setScannedItem] = useState(null);
   const [savingReturn, setSavingReturn] = useState(false);
+  const [savedReturn, setSavedReturn] = useState(null);
+  const [showReturnSuccess, setShowReturnSuccess] = useState(false);
   const scannerRef = useRef(null);
 
   useEffect(() => {
@@ -432,7 +533,7 @@ export default function Returns({ onOpenReturn }) {
     try {
       const currentUser = await authService.currentUser();
 
-      await returnService.create({
+      const createdReturn = await returnService.create({
         billId: bill.id,
         customerId: customer.id,
         reason,
@@ -463,6 +564,37 @@ export default function Returns({ onOpenReturn }) {
       }
 
       await loadData();
+
+      const refreshedReturn = {
+        ...createdReturn,
+        returnNo: createdReturn.return_no,
+        returnDate: createdReturn.created_at
+          ? new Date(createdReturn.created_at).toLocaleDateString("en-CA", {
+              timeZone: "Asia/Kolkata",
+            })
+          : new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }),
+        billNo: bill.billNo,
+        billDate: bill.billDate,
+        customerId: customer.id,
+        customerName: customer.name,
+        settlementType,
+        amount: Number(createdReturn.refund_amount || finalReturnAmount),
+        reason,
+        originalTotal: Number(bill.total || 0),
+        discount: Number(bill.discount || 0),
+        items: returnedItems.map((item) => ({
+          stockId: item.stockId,
+          stockNo: item.stockNo,
+          itemName: item.itemName,
+          category: item.category || "Item",
+          qty: Number(item.returnQty || 0),
+          returnQty: Number(item.returnQty || 0),
+          price: Number(item.price || 0),
+        })),
+      };
+
+      setSavedReturn(refreshedReturn);
+      setShowReturnSuccess(true);
 
       if (settlementType === "CREDIT") {
         const customerPendingBefore = Math.max(
@@ -1010,6 +1142,16 @@ export default function Returns({ onOpenReturn }) {
           Click any return to view complete return details.
         </p>
       </div>
+      <ReturnSuccessModal
+        open={showReturnSuccess}
+        returnData={savedReturn}
+        customer={customer}
+        phone={customer?.phone || ""}
+        onClose={() => {
+          setShowReturnSuccess(false);
+          setSavedReturn(null);
+        }}
+      />
     </main>
   );
 }
