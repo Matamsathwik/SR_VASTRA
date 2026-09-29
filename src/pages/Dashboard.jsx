@@ -327,18 +327,35 @@ export default function Dashboard({ user }) {
     paymentMap[mode] += Number(payment.amount || 0);
   });
 
+  // Top Selling Items = net quantity after returns against the selected-period bills.
   const itemMap = {};
+  const returnedItemMap = {};
 
   filteredBills.forEach((bill) => {
     (bill.items || []).forEach((item) => {
       const stockNo = String(item.stockNo || "").replace(/\D/g, "");
-      const key = `${item.itemName || "Unknown"} (${stockNo})`;
-
+      const key = String(item.itemName || "Unknown") + " (" + stockNo + ")";
       itemMap[key] = (itemMap[key] || 0) + Number(item.qty || 0);
     });
+
+    returns
+      .filter((returnItem) => Number(returnItem.billId) === Number(bill.id))
+      .forEach((returnItem) => {
+        (returnItem.items || []).forEach((item) => {
+          const stockNo = String(item.stockNo || "").replace(/\D/g, "");
+          const key = String(item.itemName || "Unknown") + " (" + stockNo + ")";
+          returnedItemMap[key] =
+            (returnedItemMap[key] || 0) + Number(item.qty || 0);
+        });
+      });
   });
 
   const topItems = Object.entries(itemMap)
+    .map(([name, qty]) => [
+      name,
+      Math.max(0, qty - Number(returnedItemMap[name] || 0)),
+    ])
+    .filter(([, qty]) => qty > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
