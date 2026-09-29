@@ -271,10 +271,11 @@ export default function Dashboard({ user }) {
     .filter((payment) => isInPeriod(payment.payment_date || payment.created_at))
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
-  const netCollected = Math.max(
+  const cashCollected = Math.max(
     0,
     billPaymentsCollected + customerPaymentsCollected - cashRefundsPaid
   );
+  const netCollected = cashCollected;
   const totalBills = filteredBills.length;
 
   // Pending Due is actual outstanding on the selected period's bills.
@@ -287,32 +288,43 @@ export default function Dashboard({ user }) {
 
   const paymentMap = { Cash: 0, UPI: 0, Card: 0, "Customer Credit": 0 };
 
-  // Count actual payments made during the selected period.
-  bills.forEach((bill) => {
+  const normalizePaymentMode = (value) => {
+    const mode = String(value || "Cash").trim().toLowerCase();
+    if (mode === "upi") return "UPI";
+    if (mode === "card") return "Card";
+    if (mode === "credit" || mode === "customer credit") return "Customer Credit";
+    return "Cash";
+  };
+
+  // Payment breakdown = how the selected-period bills were settled.
+  // Customer Credit is counted once, even if both a payment row and
+  // bill.creditUsed exist.
+  filteredBills.forEach((bill) => {
+    let recordedCredit = 0;
+
     (bill.payments || []).forEach((payment) => {
       if (!isInPeriod(payment.date || bill.billDate)) return;
 
-      const mode = payment.mode || "Cash";
-      if (paymentMap[mode] === undefined) paymentMap[mode] = 0;
-      paymentMap[mode] += Number(payment.amount || 0);
+      const mode = normalizePaymentMode(payment.mode);
+      const amount = Number(payment.amount || 0);
+      paymentMap[mode] += amount;
+
+      if (mode === "Customer Credit") recordedCredit += amount;
     });
+
+    const creditUsed = Number(bill.creditUsed || bill.credit_used || 0);
+    if (creditUsed > recordedCredit) {
+      paymentMap["Customer Credit"] += creditUsed - recordedCredit;
+    }
   });
 
   customerPayments.forEach((payment) => {
     if (!isInPeriod(payment.payment_date || payment.created_at)) return;
 
-    const mode = payment.payment_mode || payment.mode || "Cash";
-    if (paymentMap[mode] === undefined) paymentMap[mode] = 0;
+    const mode = normalizePaymentMode(
+      payment.payment_mode || payment.mode
+    );
     paymentMap[mode] += Number(payment.amount || 0);
-  });
-
-  // Credit USED at checkout is a payment method.
-  // Credit CREATED by a return is a customer liability, not a payment.
-  filteredBills.forEach((bill) => {
-    const creditUsed = Number(bill.creditUsed || bill.credit_used || 0);
-    if (creditUsed > 0) {
-      paymentMap["Customer Credit"] += creditUsed;
-    }
   });
 
   const itemMap = {};
