@@ -736,34 +736,47 @@ export default function Reports() {
   const paymentMap = useMemo(() => {
     const map = { Cash: 0, UPI: 0, Card: 0, "Customer Credit": 0 };
 
-    // Real money collected from customer payments (bill payments and due payments).
+    const normalizePaymentMode = (value) => {
+      const mode = String(value || "Cash").trim().toLowerCase();
+      if (mode === "upi") return "UPI";
+      if (mode === "card") return "Card";
+      if (mode === "credit" || mode === "customer credit") return "Customer Credit";
+      return "Cash";
+    };
+
+    // Payment breakdown = how bills were actually settled.
+    // Customer Credit is counted exactly once.
+    periodBills.forEach((bill) => {
+      let recordedCredit = 0;
+
+      parseBillPayments(bill).forEach((payment) => {
+        const paymentDate = getPaymentDate(payment, bill.billDate);
+        if (paymentDate < periodStart || paymentDate > periodEnd) return;
+
+        const mode = normalizePaymentMode(payment.mode || payment.payment_mode);
+        const amount = Number(payment.amount || 0);
+        map[mode] += amount;
+        if (mode === "Customer Credit") recordedCredit += amount;
+      });
+
+      const creditUsed = Number(bill.creditUsed || bill.credit_used || 0);
+      if (creditUsed > recordedCredit) {
+        map["Customer Credit"] += creditUsed - recordedCredit;
+      }
+    });
+
+    // Actual due payments received during the period.
     customerPayments
       .filter((payment) => {
         const paymentDate = getPaymentDate(payment);
         return paymentDate >= periodStart && paymentDate <= periodEnd;
       })
       .forEach((payment) => {
-        const mode = getPaymentMode(payment);
-        map[mode] = (map[mode] || 0) + Number(payment.amount || 0);
+        const mode = normalizePaymentMode(
+          payment.payment_mode || payment.mode
+        );
+        map[mode] += Number(payment.amount || 0);
       });
-
-    // Money received at checkout.
-    periodBills.forEach((bill) => {
-      parseBillPayments(bill).forEach((payment) => {
-        const paymentDate = getPaymentDate(payment, bill.billDate);
-        if (paymentDate < periodStart || paymentDate > periodEnd) return;
-
-        const mode = getPaymentMode(payment);
-        map[mode] = (map[mode] || 0) + Number(payment.amount || 0);
-      });
-
-      // Customer credit USED on a bill is a payment method.
-      // It must not be counted as cash/UPI/card and must not be
-      // confused with credit CREATED by a return.
-      if (Number(bill.creditUsed || 0) > 0) {
-        map["Customer Credit"] += Number(bill.creditUsed || 0);
-      }
-    });
 
     return map;
   }, [customerPayments, periodBills, periodStart, periodEnd]);
