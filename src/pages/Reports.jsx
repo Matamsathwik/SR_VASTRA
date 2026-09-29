@@ -392,6 +392,9 @@ export default function Reports() {
     };
   };
 
+  // Customer Report uses the same accounting values shown on Customer Profile:
+  // net purchases, actual current/previous pending, total pending, and
+  // the customer's stored credit balance.
   const customerReportData = useMemo(
     () =>
       customers.map((customer) => {
@@ -399,58 +402,64 @@ export default function Reports() {
           (bill) => Number(bill.customerId) === Number(customer.id)
         );
 
-        const accounting = customerBills.reduce(
-          (result, bill) => {
-            const billAccounting = getBillAccounting(bill);
-
-            result.purchases += billAccounting.gross;
-            result.paid += billAccounting.paid;
-            result.returned += billAccounting.returned;
-            result.outstanding += billAccounting.outstanding;
-            result.credit += billAccounting.credit;
-
-            return result;
-          },
-          {
-            purchases: 0,
-            paid: 0,
-            returned: 0,
-            outstanding: 0,
-            credit: 0,
-          }
+        const purchases = customerBills.reduce(
+          (sum, bill) =>
+            sum +
+            Math.max(
+              0,
+              Number(bill.total || 0) -
+                Number(returnsByBill.get(Number(bill.id)) || 0)
+            ),
+          0
         );
 
-        const previousDue = Number(customer.previous_due || 0);
-
-        // Previous due is an opening balance. Customer credit from a
-        // fully-paid returned bill can offset that balance.
-        const totalBeforeCredit =
-          previousDue + accounting.outstanding;
-
-        const creditUsed = Math.min(
-          accounting.credit,
-          totalBeforeCredit
+        const returned = customerBills.reduce(
+          (sum, bill) =>
+            sum + Number(returnsByBill.get(Number(bill.id)) || 0),
+          0
         );
 
-        const pending = Math.max(
+        const currentDue = customerBills.reduce(
+          (sum, bill) =>
+            sum +
+            Math.max(
+              0,
+              Number(
+                bill.due ??
+                  Number(bill.total || 0) - Number(bill.paid || 0)
+              )
+            ),
+          0
+        );
+
+        const previousDue = Math.max(
           0,
-          totalBeforeCredit - creditUsed
+          Number(customer.previous_due || 0)
         );
 
-        const remainingCredit = Math.max(
+        const pending = previousDue + currentDue;
+
+        // Match Customer Profile: credit_balance is the authoritative
+        // customer credit remaining after returns/credit usage.
+        const credit = Math.max(
           0,
-          accounting.credit - creditUsed
+          Number(customer.credit_balance || 0)
+        );
+
+        const paid = customerBills.reduce(
+          (sum, bill) => sum + Number(bill.paid || 0),
+          0
         );
 
         return {
           ...customer,
-          currentDue: accounting.outstanding,
+          currentDue,
           previousDue,
           pending,
-          purchases: accounting.purchases,
-          paid: accounting.paid,
-          returned: accounting.returned,
-          credit: remainingCredit,
+          purchases,
+          paid,
+          returned,
+          credit,
         };
       }),
     [customers, bills, returnsByBill]
@@ -593,21 +602,74 @@ export default function Reports() {
     1
   );
 
+  // Top Selling Items = net quantity sold for the selected period.
+  // A return reduces the quantity only when it belongs to a bill whose
+  // sale date is inside the selected period. A return made today for an
+  // older bill therefore does not reduce today's sales quantity.
   const topItems = useMemo(() => {
-    const itemMap = {};
+    const soldMap = new Map();
+    const returnedMap = new Map();
 
     periodBills.forEach((bill) => {
       (bill.items || []).forEach((item) => {
+        const stockId = Number(item.stockId || 0);
         const stockNo = String(item.stockNo || "");
-        const key = `${item.itemName || "Unknown"}${stockNo ? ` (${stockNo})` : ""}`;
-        itemMap[key] = (itemMap[key] || 0) + Number(item.qty || 0);
+        const key = stockId
+          ? `stock:${stockId}`
+          : `item:${item.itemName || "Unknown"}|${stockNo}`;
+
+        const existing = soldMap.get(key) || {
+          key,
+          itemName: item.itemName || "Unknown",
+          stockNo,
+          qty: 0,
+        };
+
+        existing.qty += Number(item.qty || 0);
+        soldMap.set(key, existing);
       });
     });
 
-    return Object.entries(itemMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-  }, [periodBills]);
+    // Returns are linked to the original bill, not only the return date.
+    // Use return_items.qty so quantity reporting is independent of refund
+    // amount/settlement type.
+    periodBills.forEach((bill) => {
+      const billId = Number(bill.id);
+
+      returns
+        .filter((returnItem) => Number(returnItem.billId) === billId)
+        .forEach((returnItem) => {
+          (returnItem.items || []).forEach((item) => {
+            const stockId = Number(item.stockId || 0);
+            const stockNo = String(item.stockNo || "");
+            const key = stockId
+              ? `stock:${stockId}`
+              : `item:${item.itemName || "Unknown"}|${stockNo}`;
+
+            returnedMap.set(
+              key,
+              (returnedMap.get(key) || 0) + Number(item.qty || 0)
+            );
+          });
+        });
+    });
+
+    return Array.from(soldMap.values())
+      .map((item) => ({
+        ...item,
+        qty: Math.max(
+          0,
+          item.qty - Number(returnedMap.get(item.key) || 0)
+        ),
+      }))
+      .filter((item) => item.qty > 0)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5)
+      .map((item) => [
+        `${item.itemName}${item.stockNo ? ` (${item.stockNo})` : ""}`,
+        item.qty,
+      ]);
+  }, [periodBills, returns]);
 
   const topCustomers = useMemo(() => {
     const customerMap = {};
