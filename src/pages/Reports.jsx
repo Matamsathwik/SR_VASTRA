@@ -269,6 +269,7 @@ export default function Reports() {
   const [showCustomDate, setShowCustomDate] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerPage, setCustomerPage] = useState(1);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState(null);
 
   const CUSTOMER_PAGE_SIZE = 5;
 
@@ -772,17 +773,6 @@ export default function Reports() {
     (sum, [, amount]) => sum + Number(amount || 0),
     0
   );
-
-  const cashDeg = paymentTotal ? (paymentMap.Cash / paymentTotal) * 360 : 0;
-  const upiDeg = paymentTotal ? (paymentMap.UPI / paymentTotal) * 360 : 0;
-  const cardDeg = paymentTotal ? (paymentMap.Card / paymentTotal) * 360 : 0;
-  const creditDeg = paymentTotal
-    ? (paymentMap["Customer Credit"] / paymentTotal) * 360
-    : 0;
-
-  const paymentGradient = paymentTotal
-    ? `conic-gradient(#16a34a 0deg ${cashDeg}deg, #2563eb ${cashDeg}deg ${cashDeg + upiDeg}deg, #f59e0b ${cashDeg + upiDeg}deg ${cashDeg + upiDeg + cardDeg}deg, #8b5cf6 ${cashDeg + upiDeg + cardDeg}deg 360deg)`
-    : "#e2e8f0";
 
   const pendingBills = useMemo(
     () =>
@@ -1447,53 +1437,54 @@ export default function Reports() {
             Cash / account inflows and customer credit separately
           </p>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "28px",
-              flexWrap: "wrap",
-              padding: "22px 0 10px",
-            }}
-          >
-            <div
-              style={{
-                width: "155px",
-                height: "155px",
-                borderRadius: "50%",
-                background: paymentGradient,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: "92px",
-                  height: "92px",
-                  borderRadius: "50%",
-                  background: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center",
-                  fontWeight: 800,
-                  fontSize: "13px",
-                  color: "#0f172a",
-                }}
-              >
-                {INR(paymentTotal)}
-              </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"32px",flexWrap:"wrap",padding:"22px 0 10px"}}>
+            <div style={{position:"relative",width:"170px",height:"170px",flex:"0 0 170px"}}>
+              <svg viewBox="0 0 170 170" width="170" height="170" role="img" aria-label="Payment breakdown" style={{overflow:"visible"}}>
+                <circle cx="85" cy="85" r="62" fill="none" stroke="#e2e8f0" strokeWidth="28"/>
+                {[
+                  ["Cash",paymentMap.Cash,"#16a34a"],
+                  ["UPI",paymentMap.UPI,"#2563eb"],
+                  ["Card",paymentMap.Card,"#f59e0b"],
+                  ["Customer Credit",paymentMap["Customer Credit"],"#8b5cf6"],
+                ].map(([mode,amount,color],index)=>{
+                  const circumference=2*Math.PI*62;
+                  const segment=paymentTotal?(Number(amount||0)/paymentTotal)*circumference:0;
+                  const offset=paymentBreakdown.slice(0,index).reduce((sum,[,v])=>sum+(paymentTotal?(Number(v||0)/paymentTotal)*circumference:0),0);
+                  return segment>0 ? (
+                    <circle key={mode} cx="85" cy="85" r="62" fill="none" stroke={color}
+                      strokeWidth={selectedPaymentMode===mode?"30":"28"}
+                      strokeDasharray={`${segment} ${circumference-segment}`}
+                      strokeDashoffset={-offset} transform="rotate(-90 85 85)"
+                      style={{cursor:"pointer",opacity:selectedPaymentMode&&selectedPaymentMode!==mode?0.35:1,transition:"opacity .15s,stroke-width .15s"}}
+                      onMouseEnter={()=>setSelectedPaymentMode(mode)}
+                      onMouseLeave={()=>setSelectedPaymentMode(null)}
+                      onClick={()=>setSelectedPaymentMode(mode)}>
+                      <title>{`${mode}: ${INR(amount)}`}</title>
+                    </circle>
+                  ):null;
+                })}
+                <circle cx="85" cy="85" r="46" fill="#fff"/>
+                <text x="85" y="81" textAnchor="middle" fontSize="13" fontWeight="800" fill="#0f172a">{INR(paymentTotal)}</text>
+                <text x="85" y="99" textAnchor="middle" fontSize="10" fill="#64748b">total received</text>
+              </svg>
+              {selectedPaymentMode&&<div style={{position:"absolute",left:"50%",top:"-8px",transform:"translate(-50%,-100%)",background:"#0f172a",color:"#fff",padding:"7px 10px",borderRadius:"7px",fontSize:"12px",fontWeight:700,whiteSpace:"nowrap",pointerEvents:"none"}}>{selectedPaymentMode}: {INR(paymentMap[selectedPaymentMode])}</div>}
             </div>
-
-            <div style={{ minWidth: "160px", lineHeight: 2.1 }}>
-              <div>🟢 Cash — {INR(paymentMap.Cash)}</div>
-              <div>🔵 UPI — {INR(paymentMap.UPI)}</div>
-              <div>🟠 Card — {INR(paymentMap.Card)}</div>
-              <div>🟣 Customer Credit — {INR(paymentMap["Customer Credit"])}</div>
+            <div style={{minWidth:"190px",display:"grid",gap:"8px"}}>
+              {[
+                ["Cash",paymentMap.Cash,"#16a34a"],
+                ["UPI",paymentMap.UPI,"#2563eb"],
+                ["Card",paymentMap.Card,"#f59e0b"],
+                ["Customer Credit",paymentMap["Customer Credit"],"#8b5cf6"],
+              ].map(([mode,amount,color])=>(
+                <button key={mode} type="button" onClick={()=>setSelectedPaymentMode(mode)} onMouseEnter={()=>setSelectedPaymentMode(mode)}
+                  style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"16px",border:"1px solid #e2e8f0",background:selectedPaymentMode===mode?"#f8fafc":"#fff",borderRadius:"8px",padding:"6px 9px",cursor:"pointer",textAlign:"left"}}>
+                  <span style={{display:"flex",alignItems:"center",gap:"8px"}}><span style={{width:9,height:9,borderRadius:"50%",background:color}}/>{mode}</span>
+                  <strong>{INR(amount)}</strong>
+                </button>
+              ))}
             </div>
           </div>
+
         </div>
 
         <div
