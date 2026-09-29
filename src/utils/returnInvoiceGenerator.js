@@ -127,12 +127,37 @@ export const generateReturnInvoice = (returnData, customer) => {
     );
 
     doc.text(
-      `Date : ${returnData.returnDate || "-"}`,
+      `Return Date : ${returnData.returnDate || "-"}`,
       76,
       y,
       {
         align: "right",
       }
+    );
+
+    y += 4;
+
+    doc.text(
+      `Original Bill : #${returnData.billNo || "-"}`,
+      4,
+      y
+    );
+
+    doc.text(
+      `Bill Date : ${returnData.billDate || "-"}`,
+      76,
+      y,
+      {
+        align: "right",
+      }
+    );
+
+    y += 4;
+
+    doc.text(
+      `Customer ID : ${returnData.customerId || customer?.id || "-"}`,
+      4,
+      y
     );
 
     // ==================================================
