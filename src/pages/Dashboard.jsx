@@ -306,16 +306,14 @@ export default function Dashboard({ user }) {
     paymentMap[mode] += Number(payment.amount || 0);
   });
 
-  filteredReturns
-    .filter(
-      (returnItem) =>
-        String(
-          returnItem.settlementType || returnItem.settlement_type || "CREDIT"
-        ).toUpperCase() === "CREDIT"
-    )
-    .forEach((returnItem) => {
-      paymentMap["Customer Credit"] += Number(returnItem.amount || 0);
-    });
+  // Credit USED at checkout is a payment method.
+  // Credit CREATED by a return is a customer liability, not a payment.
+  filteredBills.forEach((bill) => {
+    const creditUsed = Number(bill.creditUsed || bill.credit_used || 0);
+    if (creditUsed > 0) {
+      paymentMap["Customer Credit"] += creditUsed;
+    }
+  });
 
   const itemMap = {};
 
